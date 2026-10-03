@@ -38,6 +38,7 @@ C:\Windows\SysWOW64\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypas
 |---|---|
 | `tools/export-source.ps1` | Copies the master to the working copy and exports every form, report, macro, module and query to `source/`. `-NoCopy` exports the working copy as it is (after editing it). `-Master` names a different master file |
 | `tools/dump-schema.ps1` | Writes `source/schema.json`: tables, fields, indexes, relations, queries, object names. Structure only |
+| `tools/test-transactions.ps1` | Runs the Transactions form's code in a scratch copy: compiles, proves displaying records changes nothing, checks GST by date. Prints pass/fail only |
 | `tools/load-objects.ps1 -Objects "forms/Transactions,modules/Module1"` | Loads edited text from `source/` into the working copy. Refuses anything on Z: |
 
 Both Access scripts open the database with macros and VBA disabled (`AutomationSecurity = 3`) and close the

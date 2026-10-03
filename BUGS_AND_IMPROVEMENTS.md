@@ -22,7 +22,7 @@ GST column of the grouped report, both GST collected and GST claimed were unders
 (1/9 of the total recorded where 3/23 was due). If the accountant worked from gross amounts, the returns are unaffected and only the stored
 column is wrong. **This needs a decision from Craig and his accountant before anything is recalculated.**
 
-### 2. Looking at an old transaction recalculates and re-saves it - open [code, supported by data]
+### 2. Looking at an old transaction recalculates and re-saves it - done (V6.21, tested in the working copy, not yet installed in the master)
 
 `Form_Current` calls `CalcTotals` every time a record is displayed, and `CalcTotals` writes `Gross_Total`,
 `GST_Total`, `Payment` and `Receipt` at today's rate and then saves. So scrolling to a transaction from the
@@ -30,14 +30,18 @@ column is wrong. **This needs a decision from Craig and his accountant before an
 shows the trace of it: nine transactions dated before October 2010 carry 15% GST, and one to three a year in
 2011-2017.
 
-Fix: calculate only when the total, type, date or ledger code is edited, never on display.
+Fixed: totals are calculated only when the total, type, date or ledger code is edited (or a quick code
+fills the ledger code), never on display. Confirmed by running V6.20 and V6.21 through
+`tools/test-transactions.ps1`: stepping through 404 records changed stored figures in V6.20 and none in V6.21.
+The GST label now shows the rate held in the record's own figures.
 
-### 3. The GST rate is written into the code - open [code]
+### 3. The GST rate is written into the code - done (V6.21, tested in the working copy, not yet installed in the master)
 
 `CalcTotals` reads the `GST_Rates` table for the transaction date and then ignores the answer
 (`dblGST = 1.15`, with the lookup commented out). A future rate change needs a code change, and old
-transactions cannot be recalculated at their own rate. Fix together with item 2: use the rate for the
-transaction's date.
+transactions cannot be recalculated at their own rate. Fixed: `CalcTotals` uses the `GST_Rates` row covering
+the transaction date and refuses to calculate (with a message) if there is none. Note the consequence for
+item 1: editing the total, type, date or code of a 2010-2018 transaction now recalculates it at 15%.
 
 ### 4. Locking does not work - open [code, supported by data]
 

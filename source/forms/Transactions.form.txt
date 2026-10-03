@@ -29,10 +29,10 @@ Begin Form
         0x010000006801000000000000a10700000100000001000000
     End
     PrtDevMode = Begin
-        0x00000000e81f3901b85d9a113420390177c0621a901ad61780f9bd17d05d9a11 ,
+        0x00040301888c7e0100000000000000000c04ed5010f87213000000005904ed50 ,
         0x010403069c007c2043ef8007010009009a0b3408640001000f002c0102000100 ,
-        0x2c01020001004134001d390124bd9911e0a49818007099183c5c6614641e3901 ,
-        0x3c5c6614641e0000000000000000000000000000010000000000000001000000 ,
+        0x2c0102000100413400000000dc0f0000e850bb1febd82c518f51bb1f48917e01 ,
+        0x0800000030df0000000000000000000000000000010000000000000001000000 ,
         0x020000002c010000ffffffff0000000000000000000000000000000044494e55 ,
         0x2200380a940ce813bc228f870000000000000000000000000000000000000000 ,
         0x0000000000000000500000000000000000000000000000000000000000000000 ,
@@ -300,12 +300,12 @@ Begin Form
     AllowLayoutView =0
     FitToScreen =255
     PrtDevModeW = Begin
-        0x0000000000000000000000000000000000000000000000000000000000000000 ,
-        0x010000000000000000000000000000000000000000000000fc01000050010000 ,
+        0x0000890051f54c9c70ce4313f88d7e0128a9bc1f00c0910103001300dcdddf00 ,
+        0x01b2890031f54c9c38c74313188e7e0148a7bc1f2000000028827e0100000000 ,
         0x01040306dc007c2043ef8007010009009a0b3408640001000f002c0102000100 ,
-        0x2c010200010041003400000090a4250030786d140c000000a8613a010d000000 ,
-        0x94613a0114786d148c613a01bc5f3a0138a4250030786d143fa4250050d937eb ,
-        0x14786d148c610000000000000000000000000000010000000000000001000000 ,
+        0x2c0102000100410034000000000000000000bc01090000009900000020000000 ,
+        0x70e23d130000bc0100000000dc01bc019c4fbc01984fbc0198827e0117259577 ,
+        0x4000000000000000000000000000000000000000010000000000000001000000 ,
         0x020000002c010000ffffffff0000000000000000000000000000000044494e55 ,
         0x2200380a940ce813bc228f870000000000000000000000000000000000000000 ,
         0x0000000000000000500000000000000000000000000000000000000000000000 ,
@@ -783,6 +783,7 @@ Begin Form
                     Format ="Medium Date"
                     ValidationRule ="(<=(Now()+60)) Or Is Null"
                     ValidationText ="The transaction date cannot be a date in the future."
+                    AfterUpdate ="[Event Procedure]"
                     FontName ="Arial"
 
                     LayoutCachedLeft =4318
@@ -862,6 +863,7 @@ Begin Form
                     RowSourceType ="Value List"
                     RowSource ="\"Payment\";\"Receipt\""
                     ColumnWidths ="1134;1134"
+                    AfterUpdate ="[Event Procedure]"
                     DefaultValue ="\"Payment\""
                     FontName ="Arial"
                     OnChange ="[Event Procedure]"
@@ -1243,7 +1245,7 @@ Begin Form
                     ColumnWidth =1470
                     FontSize =10
                     TabIndex =4
-                    ColumnInfo ="\"\";\">\";\"10\";\"8\""
+                    ColumnInfo ="\"\";\"\";\"10\";\"8\""
                     Name ="payee_code"
                     ControlSource ="Payee_Code"
                     RowSourceType ="Table/Query"
@@ -1305,7 +1307,7 @@ Begin Form
                     Height =284
                     FontSize =10
                     TabIndex =16
-                    ColumnInfo ="\"\";\"\";\"\";\"dd/mm/yyyy\";\"10\";\"100\""
+                    ColumnInfo ="\"\";\"\";\"\";\"\";\"10\";\"100\""
                     Name ="cmdFindRecord"
                     RowSourceType ="Table/Query"
                     RowSource ="SELECT transaction_reference, transaction_date FROM transactions ORDER BY transa"
@@ -1396,17 +1398,17 @@ Option Explicit
 
 
 Private Sub account_code_AfterUpdate()
-    If IsNull([Account_Code]) Then
+    If IsNull([account_code]) Then
         Beep
         MsgBox "This Accounting Code does not exist. Please change it or add a new one.", vbCritical, "Accounting Code"
         DoCmd.CancelEvent
     End If
+    
+    CalcTotals
 End Sub
 
 Private Sub Account_Code_Exit(Cancel As Integer)
-    CalcTotals
-    
-    If IsNull(transaction_reference) Or IsNull(Date) Or IsNull(Account_Code) Then
+    If IsNull(transaction_reference) Or IsNull(Date) Or IsNull(account_code) Then
         Beep
         MsgBox "You have missing data!", vbCritical, "Missing Data"
         transaction_reference.SetFocus
@@ -1458,7 +1460,9 @@ Private Sub Form_Current()
         End With
     End If
     
-    CalcTotals
+    'totals are worked out only when the date, type, total or ledger code is changed,
+    'never when a record is just displayed
+    ShowGSTPercent
     FindNextRef
     Me!transaction_reference.DefaultValue = "'" & strRefNo & "'"
 End Sub
@@ -1478,17 +1482,22 @@ Private Sub lock_accounts_Click()
 End Sub
 
 Private Sub payee_code_AfterUpdate()
-    If IsNull([Payee_Code]) Then
+    If IsNull([payee_code]) Then
         DoCmd.GoToControl "[Payee_Name]"
     End If
         
-    If Not IsNull([Payee_Code]) Then
+    If Not IsNull([payee_code]) Then
         Payee_Name = UCase(Payee_Name)
         [Payee_Name] = DLookup("[Payee_Name]", "[quick_codes]", "[Payee_Code]=Forms![Transactions].[Payee_Code]")
-        [Account_Code] = DLookup("[Auto_Code]", "[quick_codes]", "[Payee_Code]=Forms![Transactions].[Payee_Code]")
+        [account_code] = DLookup("[Auto_Code]", "[quick_codes]", "[Payee_Code]=Forms![Transactions].[Payee_Code]")
         DoCmd.GoToControl "[account_code]"
         Me.Refresh
+        CalcTotals
     End If
+End Sub
+
+Private Sub Payment_receipt_AfterUpdate()
+    CalcTotals
 End Sub
 
 Private Sub payment_receipt_change()
@@ -1511,7 +1520,11 @@ Private Sub quick_codes_Click()
 End Sub
 
 
-Private Sub Total_AfterUpdate()
+Private Sub transaction_date_AfterUpdate()
+    CalcTotals
+End Sub
+
+Private Sub transaction_total_AfterUpdate()
     CalcTotals
 End Sub
 
@@ -1539,20 +1552,18 @@ Private Sub transactions_report_Click()
 End Sub
 
 Public Sub CalcTotals()
-    Dim rstme As DAO.Recordset
-    Dim strsql As String
+    'works out the gross, GST, payment and receipt figures of the current record
+    'at the GST rate in force on the transaction date (GST_Rates table)
+    Dim dblRate As Double
     Dim dblGST As Double
-    Dim intTransactionDate As Long
     
-    'find GST percentage based on transaction date
-    If Not IsNull(Me!transaction_date) Then
-        intTransactionDate = Me!transaction_date
-        strsql = "SELECT GSTRate FROM GST_rates where " & intTransactionDate & " >= GSTStartDate and " & intTransactionDate & " <= GSTEndDate"
-        Set rstme = CurrentDb.OpenRecordset(strsql)
-        dblGST = 1.15
-'        dblGST = 1 + rstme("GSTRate")
-
-        lblGSTPercent.Caption = "(" + Trim(Str((dblGST - 1) * 100)) + "%)"
+    If Not IsNull(Me!transaction_date) And Not IsNull(Me!transaction_total) Then
+        If Not GSTRateFor(Me!transaction_date, dblRate) Then
+            Beep
+            MsgBox "There is no GST rate for " & Format(Me!transaction_date, "d mmm yyyy") & " in the GST_Rates table. The totals have not been calculated.", vbCritical, "GST Rate"
+            Exit Sub
+        End If
+        dblGST = 1 + dblRate
     
         'update totals
         Me.Refresh
@@ -1570,12 +1581,42 @@ Public Sub CalcTotals()
         
         If (DLookup("[GST_exempt]", "[ledger_accounts]", "[Account_Code]=Forms![Transactions].[Account_Code]") = True) Then
             GST_Total = 0
-            lblGSTPercent.Caption = "(0%)"
         End If
         Me.Refresh
+        ShowGSTPercent
     End If
 
     FindNextRef
+End Sub
+
+Private Function GSTRateFor(ByVal dtmDate As Date, ByRef dblRate As Double) As Boolean
+    'finds the GST rate (0.15 for 15%) in force on a date; False if GST_Rates has no rate for it
+    Dim rstme As DAO.Recordset
+    Dim strDate As String
+
+    strDate = Format(dtmDate, "\#mm\/dd\/yyyy\#")
+    Set rstme = CurrentDb.OpenRecordset("SELECT GSTRate FROM GST_Rates WHERE GSTStartDate <= " & strDate & " AND GSTEndDate >= " & strDate)
+    If Not rstme.EOF Then
+        dblRate = CDbl(rstme("GSTRate"))
+        GSTRateFor = True
+    End If
+    rstme.Close
+    Set rstme = Nothing
+End Function
+
+Private Sub ShowGSTPercent()
+    'shows the GST rate held in the record's stored figures, to the nearest half percent; changes no data
+    Dim dblNet As Double
+
+    lblGSTPercent.Caption = "% GST"
+    If IsNull(Me!GST_Total) Or IsNull(Me!transaction_total) Then Exit Sub
+    
+    If Me!GST_Total = 0 Then
+        lblGSTPercent.Caption = "(0%)"
+    Else
+        dblNet = Abs(Me!transaction_total) - Abs(Me!GST_Total)
+        If dblNet <> 0 Then lblGSTPercent.Caption = "(" & (Round(Abs(Me!GST_Total) / dblNet * 200, 0) / 2) & "%)"
+    End If
 End Sub
 Public Sub FindNextRef()
     Dim strRefNoPart1 As String
