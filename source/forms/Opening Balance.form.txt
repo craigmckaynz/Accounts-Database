@@ -1,0 +1,258 @@
+Version =21
+VersionRequired =20
+Begin Form
+    PopUp = NotDefault
+    Modal = NotDefault
+    RecordSelectors = NotDefault
+    MaxButton = NotDefault
+    MinButton = NotDefault
+    NavigationButtons = NotDefault
+    PictureTiling = NotDefault
+    DividingLines = NotDefault
+    DefaultView =0
+    ScrollBars =0
+    ViewsAllowed =1
+    BorderStyle =1
+    Cycle =1
+    GridX =5
+    GridY =5
+    Width =6689
+    ItemSuffix =22
+    Left =12525
+    Top =3690
+    Right =19455
+    Bottom =6285
+    RecSrcDt = Begin
+        0x76bab7531875e240
+    End
+    RecordSource ="opening_balance"
+    Caption ="Bank Account"
+    AllowDatasheetView =0
+    FilterOnLoad =0
+    ShowPageMargins =0
+    AllowLayoutView =0
+    NoSaveCTIWhenDisabled =1
+    Begin
+        Begin Label
+            TextAlign =3
+            FontWeight =700
+            BackColor =12632256
+        End
+        Begin Rectangle
+            SpecialEffect =2
+            BorderLineStyle =0
+            Width =850
+            Height =850
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="Tahoma"
+            BorderLineStyle =0
+        End
+        Begin OptionButton
+            AddColon = NotDefault
+            SpecialEffect =2
+            LabelAlign =3
+            BorderLineStyle =0
+            Width =187
+            Height =187
+            LabelX =-236
+        End
+        Begin CheckBox
+            AddColon = NotDefault
+            SpecialEffect =2
+            LabelAlign =3
+            BorderLineStyle =0
+            Width =187
+            Height =187
+            LabelX =-236
+        End
+        Begin TextBox
+            SpecialEffect =2
+            LabelAlign =3
+            BorderLineStyle =0
+            Width =1701
+            Height =255
+            LabelX =-236
+        End
+        Begin ListBox
+            SpecialEffect =2
+            LabelAlign =3
+            BorderLineStyle =0
+            Width =1701
+            Height =1417
+            LabelX =-236
+        End
+        Begin ComboBox
+            SpecialEffect =2
+            LabelAlign =3
+            BorderLineStyle =0
+            Width =1701
+            Height =255
+            LabelX =-236
+        End
+        Begin FormHeader
+            Height =0
+            BackColor =12632256
+            Name ="FormHeader1"
+        End
+        Begin Section
+            Height =2610
+            BackColor =10728890
+            Name ="Detail0"
+            Begin
+                Begin Rectangle
+                    OverlapFlags =93
+                    Left =120
+                    Top =630
+                    Width =6435
+                    Height =1290
+                    BackColor =8388608
+                    Name ="Box19"
+                    LayoutCachedLeft =120
+                    LayoutCachedTop =630
+                    LayoutCachedWidth =6555
+                    LayoutCachedHeight =1920
+                End
+                Begin Rectangle
+                    OverlapFlags =223
+                    Left =255
+                    Top =795
+                    Width =6150
+                    Height =960
+                    BackColor =12632256
+                    Name ="Box18"
+                    LayoutCachedLeft =255
+                    LayoutCachedTop =795
+                    LayoutCachedWidth =6405
+                    LayoutCachedHeight =1755
+                End
+                Begin TextBox
+                    OverlapFlags =215
+                    Left =2445
+                    Top =960
+                    Width =3750
+                    Height =284
+                    FontSize =10
+                    Name ="Bank_Account"
+                    ControlSource ="Bank_Account"
+                    FontName ="Arial"
+
+                    LayoutCachedLeft =2445
+                    LayoutCachedTop =960
+                    LayoutCachedWidth =6195
+                    LayoutCachedHeight =1244
+                    Begin
+                        Begin Label
+                            OverlapFlags =215
+                            TextAlign =1
+                            Left =405
+                            Top =960
+                            Width =1650
+                            Height =285
+                            FontSize =10
+                            Name ="Text15"
+                            Caption ="Account Name:"
+                            FontName ="Arial"
+                            LayoutCachedLeft =405
+                            LayoutCachedTop =960
+                            LayoutCachedWidth =2055
+                            LayoutCachedHeight =1245
+                        End
+                    End
+                End
+                Begin TextBox
+                    OverlapFlags =215
+                    Left =2445
+                    Top =1335
+                    Width =1365
+                    Height =284
+                    FontSize =10
+                    TabIndex =1
+                    Name ="Opening_Balance"
+                    ControlSource ="Opening_Balance"
+                    Format ="$#,##0.00;-$#,##0.00"
+                    FontName ="Arial"
+
+                    LayoutCachedLeft =2445
+                    LayoutCachedTop =1335
+                    LayoutCachedWidth =3810
+                    LayoutCachedHeight =1619
+                    Begin
+                        Begin Label
+                            OverlapFlags =215
+                            TextAlign =1
+                            Left =405
+                            Top =1335
+                            Width =1935
+                            Height =285
+                            FontSize =10
+                            Name ="Text17"
+                            Caption ="Opening Balance:"
+                            FontName ="Arial"
+                            LayoutCachedLeft =405
+                            LayoutCachedTop =1335
+                            LayoutCachedWidth =2340
+                            LayoutCachedHeight =1620
+                        End
+                    End
+                End
+                Begin Label
+                    BackStyle =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =1650
+                    Top =120
+                    Width =3255
+                    Height =405
+                    FontSize =14
+                    FontWeight =400
+                    ForeColor =8388608
+                    Name ="Text13"
+                    Caption ="Opening Bank Balance"
+                    FontName ="Arial"
+                    LayoutCachedLeft =1650
+                    LayoutCachedTop =120
+                    LayoutCachedWidth =4905
+                    LayoutCachedHeight =525
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    Left =2655
+                    Top =2070
+                    Width =1035
+                    Height =405
+                    TabIndex =2
+                    Name ="exit_opening_balance"
+                    Caption ="Exit"
+                    OnClick ="[Event Procedure]"
+                    FontName ="Arial"
+
+                    LayoutCachedLeft =2655
+                    LayoutCachedTop =2070
+                    LayoutCachedWidth =3690
+                    LayoutCachedHeight =2475
+                End
+            End
+        End
+        Begin FormFooter
+            Height =0
+            BackColor =12632256
+            Name ="FormFooter2"
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+
+Private Sub exit_opening_balance_Click()
+DoCmd.Close
+End Sub

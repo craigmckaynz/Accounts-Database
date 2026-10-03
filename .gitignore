@@ -1,0 +1,11 @@
+# The repository is public: no databases, spreadsheets or data exports.
+*.accdb
+*.laccdb
+*.mdb
+*.ldb
+*.xls
+*.xlsx
+*.csv
+*.bak
+data/
+work/

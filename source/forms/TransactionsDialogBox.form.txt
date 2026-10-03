@@ -1,0 +1,768 @@
+Version =21
+VersionRequired =20
+Begin Form
+    PopUp = NotDefault
+    Modal = NotDefault
+    RecordSelectors = NotDefault
+    MaxButton = NotDefault
+    MinButton = NotDefault
+    ShortcutMenu = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    PictureTiling = NotDefault
+    DividingLines = NotDefault
+    DefaultView =0
+    ScrollBars =0
+    ViewsAllowed =1
+    BorderStyle =1
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =10
+    Width =5700
+    DatasheetFontHeight =10
+    ItemSuffix =47
+    Left =13095
+    Top =5190
+    Right =18795
+    Bottom =10905
+    DatasheetGridlinesColor =12632256
+    RecSrcDt = Begin
+        0xdece0d7f783ee240
+    End
+    Caption ="Transactions"
+    DatasheetFontName ="Arial"
+    PrtMip = Begin
+        0xae050000a7050000a7050000a705000000000000201c0000e010000001000000 ,
+        0x010000006801000000000000a10700000100000001000000
+    End
+    PrtDevMode = Begin
+        0x00d38c0064431e010000000008411e019d140a0064431e012000000044d38c00 ,
+        0x010400059c00580243ef800701000900ea0a6f08640001000f002c0102000100 ,
+        0x2c01020001004c65747465720000000064431e010d00000050431e0134421e01 ,
+        0x0c00000060410000000000000000000000000000010000000000000002000000 ,
+        0x0200000001000000010100000000000000000000000000000000000044494e55 ,
+        0x2200000034022400e5d010610000000000000000000000000100000000000000 ,
+        0x00000000000000000c0000000000000000000000000003000300000000000100 ,
+        0x0000040000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000024000000981924020100000000000000 ,
+        0x0000000000000000240000009819240201000000
+    End
+    OnLoad ="[Event Procedure]"
+    AllowDatasheetView =0
+    FilterOnLoad =0
+    ShowPageMargins =0
+    AllowLayoutView =0
+    DatasheetGridlinesColor12 =12632256
+    PrtDevModeW = Begin
+        0x0000000000001811000000004800000060021811000000000300000000000000 ,
+        0x3c0000000800000010151811309c1f01549a1f013e5dcb77010000003e5dcb77 ,
+        0x01040005dc00580243ef800701000900ea0a6f08640001000f002c0102000100 ,
+        0x2c01020001004c00650074007400650072000000c000580160025801b8e3cc17 ,
+        0x00005801c07f4614b87f4614030000030000580103000000709c1f0100005801 ,
+        0xcd86cb77787c0000000000000000000000000000010000000000000002000000 ,
+        0x0200000001000000010100000000000000000000000000000000000044494e55 ,
+        0x2200000034022400e5d010610000000000000000000000000100000000000000 ,
+        0x00000000000000000c0000000000000000000000000003000300000000000100 ,
+        0x0000040000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000024000000981924020100000000000000 ,
+        0x0000000000000000240000009819240201000000
+    End
+    NoSaveCTIWhenDisabled =1
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin Rectangle
+            SpecialEffect =3
+            BackStyle =0
+            BorderLineStyle =0
+            Width =850
+            Height =850
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            FontName ="MS Sans Serif"
+            BorderLineStyle =0
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            BorderLineStyle =0
+            LabelX =230
+            LabelY =-30
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            BorderLineStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ComboBox
+            SpecialEffect =2
+            BorderLineStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin UnboundObjectFrame
+            SpecialEffect =2
+            OldBorderStyle =1
+            Width =4536
+            Height =2835
+        End
+        Begin CustomControl
+            SpecialEffect =2
+            Width =4536
+            Height =2835
+        End
+        Begin Section
+            Height =5730
+            BackColor =10728890
+            Name ="Detail"
+            Begin
+                Begin Rectangle
+                    SpecialEffect =2
+                    BackStyle =1
+                    OldBorderStyle =0
+                    BorderWidth =3
+                    OverlapFlags =93
+                    Left =225
+                    Top =615
+                    Width =5295
+                    Height =4860
+                    BackColor =8388608
+                    Name ="Box40"
+                End
+                Begin Rectangle
+                    SpecialEffect =2
+                    BackStyle =1
+                    OverlapFlags =223
+                    Left =2640
+                    Top =3495
+                    Width =2711
+                    Height =1808
+                    BackColor =12632256
+                    Name ="Box10"
+                End
+                Begin Rectangle
+                    SpecialEffect =2
+                    BackStyle =1
+                    OverlapFlags =223
+                    Left =2610
+                    Top =765
+                    Width =2743
+                    Height =2571
+                    BackColor =12632256
+                    Name ="Box35"
+                End
+                Begin Rectangle
+                    SpecialEffect =2
+                    BackStyle =1
+                    OverlapFlags =223
+                    Left =360
+                    Top =765
+                    Width =2095
+                    Height =4553
+                    BackColor =12632256
+                    Name ="Box34"
+                End
+                Begin TextBox
+                    OverlapFlags =215
+                    Left =4200
+                    Top =1545
+                    Width =1022
+                    Height =227
+                    TabIndex =10
+                    Name ="BeginningDate"
+                    Format ="Short Date"
+
+                    Begin
+                        Begin Label
+                            OverlapFlags =215
+                            Left =2730
+                            Top =1545
+                            Width =1260
+                            Height =240
+                            Name ="Label2"
+                            Caption ="Beginning Date:"
+                        End
+                    End
+                End
+                Begin TextBox
+                    OverlapFlags =215
+                    Left =4200
+                    Top =1885
+                    Width =1021
+                    Height =223
+                    TabIndex =11
+                    Name ="EndingDate"
+                    Format ="Short Date"
+
+                    Begin
+                        Begin Label
+                            OverlapFlags =215
+                            Left =2730
+                            Top =1890
+                            Width =1020
+                            Height =240
+                            Name ="Label4"
+                            Caption ="Ending Date:"
+                        End
+                    End
+                End
+                Begin CommandButton
+                    OverlapFlags =215
+                    Left =3330
+                    Top =3945
+                    Width =1451
+                    Height =345
+                    TabIndex =13
+                    Name ="Preview"
+                    Caption ="Preview/Print"
+                    OnClick ="[Event Procedure]"
+
+                    Overlaps =1
+                End
+                Begin CommandButton
+                    OverlapFlags =215
+                    Left =3345
+                    Top =4395
+                    Width =1449
+                    Height =345
+                    TabIndex =14
+                    ForeColor =1
+                    Name ="export_to_excel"
+                    Caption ="Transfer to Excel"
+                    OnClick ="[Event Procedure]"
+
+                    Overlaps =1
+                End
+                Begin ComboBox
+                    OverlapFlags =215
+                    ColumnCount =3
+                    ListWidth =5954
+                    Left =1335
+                    Top =1560
+                    Width =1014
+                    Height =256
+                    Name ="Code1"
+                    RowSourceType ="Table/Query"
+                    RowSource ="SELECT DISTINCTROW [Ledger Accounts].Account_Code, [Ledger Accounts].Description"
+                        ", [Ledger Accounts].sub_code_description FROM [Ledger Accounts]; "
+                    ColumnWidths ="851;2552;2552"
+
+                    Begin
+                        Begin Label
+                            OverlapFlags =215
+                            Left =437
+                            Top =1560
+                            Width =795
+                            Height =256
+                            Name ="Account_Code_Label"
+                            Caption ="1st Code:"
+                        End
+                    End
+                End
+                Begin ComboBox
+                    OverlapFlags =215
+                    ColumnCount =3
+                    ListWidth =5954
+                    Left =1335
+                    Top =1905
+                    Width =1014
+                    Height =256
+                    TabIndex =1
+                    Name ="Code2"
+                    RowSourceType ="Table/Query"
+                    RowSource ="SELECT DISTINCTROW [Ledger Accounts].Account_Code, [Ledger Accounts].Description"
+                        ", [Ledger Accounts].sub_code_description FROM [Ledger Accounts]; "
+                    ColumnWidths ="851;2552;2552"
+
+                    Begin
+                        Begin Label
+                            OverlapFlags =215
+                            Left =437
+                            Top =1900
+                            Width =840
+                            Height =256
+                            Name ="Label14"
+                            Caption ="2nd Code:"
+                        End
+                    End
+                End
+                Begin Label
+                    OverlapFlags =215
+                    Left =465
+                    Top =870
+                    Width =1830
+                    Height =600
+                    FontWeight =700
+                    Name ="Label15"
+                    Caption ="Select the Account Codes you want to report on:"
+                End
+                Begin ComboBox
+                    OverlapFlags =215
+                    ColumnCount =3
+                    ListWidth =5954
+                    Left =1335
+                    Top =2276
+                    Width =1014
+                    Height =256
+                    TabIndex =2
+                    Name ="Code3"
+                    RowSourceType ="Table/Query"
+                    RowSource ="SELECT DISTINCTROW [Ledger Accounts].Account_Code, [Ledger Accounts].Description"
+                        ", [Ledger Accounts].sub_code_description FROM [Ledger Accounts]; "
+                    ColumnWidths ="851;2552;2552"
+
+                    Begin
+                        Begin Label
+                            OverlapFlags =215
+                            Left =437
+                            Top =2276
+                            Width =840
+                            Height =256
+                            Name ="Label17"
+                            Caption ="3rd Code:"
+                        End
+                    End
+                End
+                Begin ComboBox
+                    OverlapFlags =215
+                    ColumnCount =3
+                    ListWidth =5954
+                    Left =1335
+                    Top =2652
+                    Width =1014
+                    Height =256
+                    TabIndex =3
+                    Name ="Code4"
+                    RowSourceType ="Table/Query"
+                    RowSource ="SELECT DISTINCTROW [Ledger Accounts].Account_Code, [Ledger Accounts].Description"
+                        ", [Ledger Accounts].sub_code_description FROM [Ledger Accounts]; "
+                    ColumnWidths ="851;2552;2552"
+
+                    Begin
+                        Begin Label
+                            OverlapFlags =215
+                            Left =437
+                            Top =2652
+                            Width =840
+                            Height =256
+                            Name ="Label19"
+                            Caption ="4th Code:"
+                        End
+                    End
+                End
+                Begin ComboBox
+                    OverlapFlags =215
+                    ColumnCount =3
+                    ListWidth =5954
+                    Left =1335
+                    Top =3028
+                    Width =1014
+                    Height =256
+                    TabIndex =4
+                    Name ="Code5"
+                    RowSourceType ="Table/Query"
+                    RowSource ="SELECT DISTINCTROW [Ledger Accounts].Account_Code, [Ledger Accounts].Description"
+                        ", [Ledger Accounts].sub_code_description FROM [Ledger Accounts]; "
+                    ColumnWidths ="851;2552;2552"
+
+                    Begin
+                        Begin Label
+                            OverlapFlags =215
+                            Left =437
+                            Top =3028
+                            Width =840
+                            Height =256
+                            Name ="Label21"
+                            Caption ="5th Code:"
+                        End
+                    End
+                End
+                Begin ComboBox
+                    OverlapFlags =215
+                    ColumnCount =3
+                    ListWidth =5954
+                    Left =1335
+                    Top =3404
+                    Width =1014
+                    Height =256
+                    TabIndex =5
+                    Name ="Code6"
+                    RowSourceType ="Table/Query"
+                    RowSource ="SELECT DISTINCTROW [Ledger Accounts].Account_Code, [Ledger Accounts].Description"
+                        ", [Ledger Accounts].sub_code_description FROM [Ledger Accounts]; "
+                    ColumnWidths ="851;2552;2552"
+
+                    Begin
+                        Begin Label
+                            OverlapFlags =215
+                            Left =437
+                            Top =3404
+                            Width =840
+                            Height =256
+                            Name ="Label23"
+                            Caption ="6th Code:"
+                        End
+                    End
+                End
+                Begin ComboBox
+                    OverlapFlags =215
+                    ColumnCount =3
+                    ListWidth =5954
+                    Left =1335
+                    Top =3780
+                    Width =1014
+                    Height =256
+                    TabIndex =6
+                    Name ="Code7"
+                    RowSourceType ="Table/Query"
+                    RowSource ="SELECT DISTINCTROW [Ledger Accounts].Account_Code, [Ledger Accounts].Description"
+                        ", [Ledger Accounts].sub_code_description FROM [Ledger Accounts]; "
+                    ColumnWidths ="851;2552;2552"
+
+                    Begin
+                        Begin Label
+                            OverlapFlags =215
+                            Left =437
+                            Top =3780
+                            Width =840
+                            Height =256
+                            Name ="Label25"
+                            Caption ="7th Code:"
+                        End
+                    End
+                End
+                Begin ComboBox
+                    OverlapFlags =215
+                    ColumnCount =3
+                    ListWidth =5954
+                    Left =1335
+                    Top =4156
+                    Width =1014
+                    Height =256
+                    TabIndex =7
+                    Name ="Code8"
+                    RowSourceType ="Table/Query"
+                    RowSource ="SELECT DISTINCTROW [Ledger Accounts].Account_Code, [Ledger Accounts].Description"
+                        ", [Ledger Accounts].sub_code_description FROM [Ledger Accounts]; "
+                    ColumnWidths ="851;2552;2552"
+
+                    Begin
+                        Begin Label
+                            OverlapFlags =215
+                            Left =437
+                            Top =4156
+                            Width =840
+                            Height =256
+                            Name ="Label27"
+                            Caption ="8th Code:"
+                        End
+                    End
+                End
+                Begin ComboBox
+                    OverlapFlags =215
+                    ColumnCount =3
+                    ListWidth =5954
+                    Left =1335
+                    Top =4532
+                    Width =1014
+                    Height =256
+                    TabIndex =8
+                    Name ="Code9"
+                    RowSourceType ="Table/Query"
+                    RowSource ="SELECT DISTINCTROW [Ledger Accounts].Account_Code, [Ledger Accounts].Description"
+                        ", [Ledger Accounts].sub_code_description FROM [Ledger Accounts]; "
+                    ColumnWidths ="851;2552;2552"
+
+                    Begin
+                        Begin Label
+                            OverlapFlags =215
+                            Left =437
+                            Top =4532
+                            Width =840
+                            Height =256
+                            Name ="Label29"
+                            Caption ="9th Code:"
+                        End
+                    End
+                End
+                Begin ComboBox
+                    LimitToList = NotDefault
+                    OverlapFlags =215
+                    ColumnCount =3
+                    ListWidth =5954
+                    Left =1335
+                    Top =4908
+                    Width =1014
+                    Height =256
+                    TabIndex =9
+                    Name ="Code10"
+                    RowSourceType ="Table/Query"
+                    RowSource ="SELECT DISTINCTROW [Ledger Accounts].Account_Code, [Ledger Accounts].Description"
+                        ", [Ledger Accounts].sub_code_description FROM [Ledger Accounts]; "
+                    ColumnWidths ="851;2552;2552"
+
+                    Begin
+                        Begin Label
+                            OverlapFlags =215
+                            Left =435
+                            Top =4902
+                            Width =855
+                            Height =255
+                            Name ="Label31"
+                            Caption ="10th Code:"
+                        End
+                    End
+                End
+                Begin Label
+                    OverlapFlags =215
+                    Left =2730
+                    Top =885
+                    Width =1230
+                    Height =435
+                    FontWeight =700
+                    Name ="Label33"
+                    Caption ="Set the Date Range:"
+                End
+                Begin Label
+                    OverlapFlags =215
+                    Left =2760
+                    Top =3600
+                    Width =780
+                    Height =240
+                    FontWeight =700
+                    Name ="Label36"
+                    Caption ="Actions:"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    TextAlign =2
+                    Left =705
+                    Top =120
+                    Width =4380
+                    Height =405
+                    FontSize =14
+                    ForeColor =8388608
+                    Name ="Label38"
+                    Caption ="Transactions Report Generator"
+                    FontName ="Arial"
+                End
+                Begin CommandButton
+                    OverlapFlags =215
+                    Left =3345
+                    Top =4845
+                    Width =1451
+                    Height =345
+                    TabIndex =15
+                    Name ="transactions_report_exit"
+                    Caption ="Exit"
+                    OnClick ="[Event Procedure]"
+
+                    Overlaps =1
+                End
+                Begin TextBox
+                    DecimalPlaces =2
+                    OverlapFlags =215
+                    TextAlign =3
+                    IMESentenceMode =3
+                    Left =4200
+                    Top =2550
+                    Width =1022
+                    Height =223
+                    TabIndex =12
+                    Name ="opening_balance"
+                    Format ="$#,##0.00;-$#,##0.00"
+                    DefaultValue ="DLookUp(\"[opening_balance]\",\"[opening_balance]\")"
+
+                    Begin
+                        Begin Label
+                            OverlapFlags =215
+                            Left =2730
+                            Top =2550
+                            Width =1350
+                            Height =240
+                            Name ="Label43"
+                            Caption ="Opening Balance:"
+                        End
+                    End
+                End
+                Begin CheckBox
+                    OverlapFlags =215
+                    Left =4303
+                    Top =2973
+                    Width =224
+                    Height =227
+                    TabIndex =16
+                    Name ="group_transactions"
+                    DefaultValue ="False"
+
+                    Begin
+                        Begin Label
+                            OverlapFlags =215
+                            Left =2715
+                            Top =2925
+                            Width =1515
+                            Height =240
+                            Name ="Label46"
+                            Caption ="Group Transactions:"
+                        End
+                    End
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+Const ConErrRptCanceled = 2501
+
+Private Sub export_to_excel_Click()
+    'exports data to spreadsheet for current contract
+    Dim strFileName As String
+    Dim strFilePath As String
+    Dim strExcelFile As String
+    Dim strContractName As String
+    Dim strAreaName As String
+    Dim strQueryName As String
+    Dim XL As Object
+    Dim cell As Range
+    Dim max_col As Integer
+    'Dim msg, style, title, response
+    
+    'allows user to select folder in which to save excel file
+    Set XL = CreateObject("Excel.Application")
+    SaveSetting appname:="mcl", Section:="Startup", Key:="FilePath", setting:=GetBrowse
+    strFilePath = GetSetting(appname:="mcl", Section:="Startup", Key:="FilePath", Default:="Not Set")
+    strFileName = "mckay_consultants_transactions"
+    strQueryName = "Transactionsquery"
+    strExcelFile = "" & strFilePath & "" & strFileName & ""
+    XL.Visible = True
+    DoCmd.TransferSpreadsheet acExport, acSpreadsheetTypeExcel9, "" & strQueryName & "", "" & strExcelFile & ".xls"
+    XL.Workbooks.Open ("" & strExcelFile & ".xls")
+    XL.ActiveSheet.Name = "" & strFileName & ""
+    
+    'format all cells to arial 8 size font
+    XL.ActiveSheet.Range("a1").CurrentRegion.Select
+    With XL.Selection.Font
+        .Size = 8
+        .Name = "arial"
+    End With
+
+    'Format the first row (column headers).
+     max_col = XL.ActiveSheet.UsedRange.Columns.Count
+     XL.ActiveSheet.Range(XL.ActiveSheet.Cells(1, 1), XL.ActiveSheet.Cells(1, max_col)).Select
+     With XL.Selection
+         .Font.FontStyle = "Bold"
+         .HorizontalAlignment = xlCenter
+         .Interior.ColorIndex = 15
+     End With
+     XL.Selection.Borders(xlDiagonalDown).LineStyle = xlNone
+     XL.Selection.Borders(xlDiagonalUp).LineStyle = xlNone
+     With XL.Selection.Borders(xlEdgeLeft)
+         .LineStyle = xlContinuous
+         .Weight = xlThin
+         .ColorIndex = xlAutomatic
+     End With
+     With XL.Selection.Borders(xlEdgeTop)
+         .LineStyle = xlContinuous
+         .Weight = xlThin
+         .ColorIndex = xlAutomatic
+     End With
+     With XL.Selection.Borders(xlEdgeBottom)
+         .LineStyle = xlContinuous
+         .Weight = xlThin
+         .ColorIndex = xlAutomatic
+     End With
+     With XL.Selection.Borders(xlEdgeRight)
+         .LineStyle = xlContinuous
+         .Weight = xlThin
+         .ColorIndex = xlAutomatic
+     End With
+     With XL.Selection.Borders(xlInsideVertical)
+         .LineStyle = xlContinuous
+         .Weight = xlThin
+         .ColorIndex = xlAutomatic
+     End With
+     
+     'Convert headers to title case
+     For Each cell In XL.Selection.Cells
+         cell = StrConv(cell, vbProperCase)
+     Next
+     
+    'autofit columns
+     XL.ActiveSheet.UsedRange.Select
+     XL.Selection.Columns.AutoFit
+     XL.Cells.Select
+     XL.Selection.RowHeight = 15
+     XL.Range("A1").Select
+
+End Sub
+
+Private Sub Form_Load()
+    Me!BeginningDate = #9/30/1995#
+    Me!EndingDate = Now()
+    Me!Code1 = "*"
+End Sub
+
+Private Sub Preview_Click()
+    Dim DocName As String
+    
+    If EndingDate < BeginningDate Then
+       MsgBox "The Ending Date must be later than the Beginning Date."
+       DoCmd.CancelEvent
+       Exit Sub
+    End If
+    
+    If IsNull([Opening_Balance]) Then Opening_Balance = 0
+    
+    If group_transactions = False Then
+        DocName = "Transactions"
+    Else
+        DocName = "transactions_grouped"
+    End If
+        
+    DoCmd.OpenReport DocName, 2
+End Sub
+
+Private Sub transactions_report_exit_Click()
+    DoCmd.Close
+End Sub

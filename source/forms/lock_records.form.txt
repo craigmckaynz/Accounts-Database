@@ -1,0 +1,255 @@
+Version =21
+VersionRequired =20
+Begin Form
+    Modal = NotDefault
+    RecordSelectors = NotDefault
+    MaxButton = NotDefault
+    MinButton = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    DividingLines = NotDefault
+    AllowDesignChanges = NotDefault
+    DefaultView =0
+    ScrollBars =0
+    TabularFamily =119
+    BorderStyle =0
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =10
+    Width =5835
+    DatasheetFontHeight =10
+    ItemSuffix =7
+    Left =9780
+    Top =3915
+    Right =15615
+    Bottom =7020
+    DatasheetGridlinesColor =12632256
+    RecSrcDt = Begin
+        0xc38680515a76e240
+    End
+    DatasheetFontName ="Arial"
+    PrtMip = Begin
+        0xa2050000a1050000a1050000a105000000000000201c0000e010000001000000 ,
+        0x010000006801000000000000a10700000100000001000000
+    End
+    PrtDevMode = Begin
+        0x485020323030304300000000a85d4e019d14130004604e012000000044d39500 ,
+        0x010400059c00580243ef8007010009009a0b3408640001000f002c0102000100 ,
+        0x2c01020001004134005e4e010c00000004604e010d000000f05f4e01d45e4e01 ,
+        0x0c000000005e0000000000000000000000000000010000000000000002000000 ,
+        0x0200000001000000010100000000000000000000000000000000000044494e55 ,
+        0x2200000034022400e5d010610000000000000000000000000100000000000000 ,
+        0x00000000000000000c0000000100000000000000000000000300000000000100 ,
+        0x0000040000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000024000000981924020100000000000000 ,
+        0x0000000000000000240000009819240201000000
+    End
+    FilterOnLoad =0
+    ShowPageMargins =0
+    DatasheetGridlinesColor12 =12632256
+    PrtDevModeW = Begin
+        0x4800500020003200300030003000430000000000000000003c00000008000000 ,
+        0x1015780e58a04f017c9e4f012e483c77010000002e483c770800000000000000 ,
+        0x01040005dc00580243ef8007010009009a0b3408640001000f002c0102000100 ,
+        0x2c01020001004100340000005f34e1d0e00f0c00e00f0c000000000000000000 ,
+        0x000000000c0000000000000000e8200100e8200100008701bd713c77a02c1f27 ,
+        0x00000000f4750000000000000000000000000000010000000000000002000000 ,
+        0x0200000001000000010100000000000000000000000000000000000044494e55 ,
+        0x2200000034022400e5d010610000000000000000000000000100000000000000 ,
+        0x00000000000000000c0000000100000000000000000000000300000000000100 ,
+        0x0000040000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000024000000981924020100000000000000 ,
+        0x0000000000000000240000009819240201000000
+    End
+    NoSaveCTIWhenDisabled =1
+    Begin
+        Begin Label
+            BackStyle =0
+            FontName ="Tahoma"
+        End
+        Begin Rectangle
+            SpecialEffect =3
+            BackStyle =0
+            BorderLineStyle =0
+            Width =850
+            Height =850
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="Tahoma"
+            BorderLineStyle =0
+        End
+        Begin Section
+            Height =3120
+            BackColor =12632256
+            Name ="Detail"
+            Begin
+                Begin Rectangle
+                    SpecialEffect =0
+                    BackStyle =1
+                    OverlapFlags =93
+                    Width =5835
+                    Height =3120
+                    BackColor =8421504
+                    Name ="Box39"
+                End
+                Begin Label
+                    OverlapFlags =223
+                    TextAlign =2
+                    Left =1395
+                    Top =270
+                    Width =3075
+                    Height =345
+                    FontSize =12
+                    FontWeight =700
+                    BackColor =12632256
+                    ForeColor =8388608
+                    Name ="Text13"
+                    Caption ="Lock/Unlock Transactions"
+                    FontName ="Arial"
+                End
+                Begin Label
+                    OverlapFlags =223
+                    Left =345
+                    Top =705
+                    Width =5055
+                    Height =1575
+                    ForeColor =16777215
+                    Name ="Label2"
+                    Caption ="This function will lock/unlock the transaction records. Records can be locked to"
+                        " avoid accidental deletions or changes to the transactions. \015\012\015\012Choo"
+                        "sing the lock records option records will locked all records prior to the date s"
+                        "pecified. \015\012\015\012The unlock option will unlock all the transaction reco"
+                        "rds in the database."
+                End
+                Begin CommandButton
+                    TabStop = NotDefault
+                    OverlapFlags =223
+                    Left =345
+                    Top =2445
+                    Height =340
+                    FontWeight =700
+                    ForeColor =0
+                    Name ="lock_records"
+                    Caption ="Lock Records"
+                    OnClick ="[Event Procedure]"
+                    FontName ="Arial"
+
+                    Overlaps =1
+                End
+                Begin CommandButton
+                    TabStop = NotDefault
+                    OverlapFlags =223
+                    Left =2220
+                    Top =2445
+                    Height =340
+                    FontWeight =700
+                    TabIndex =1
+                    ForeColor =0
+                    Name ="unlock_records"
+                    Caption ="Unlock Records"
+                    OnClick ="[Event Procedure]"
+                    FontName ="Arial"
+
+                    Overlaps =1
+                End
+                Begin Rectangle
+                    SpecialEffect =0
+                    OverlapFlags =223
+                    Left =165
+                    Top =150
+                    Width =5505
+                    Height =2790
+                    Name ="Box5"
+                End
+                Begin CommandButton
+                    TabStop = NotDefault
+                    OverlapFlags =215
+                    Left =4065
+                    Top =2445
+                    Width =1341
+                    Height =340
+                    FontWeight =700
+                    TabIndex =2
+                    ForeColor =0
+                    Name ="cancel_lock_records"
+                    Caption ="Cancel"
+                    OnClick ="[Event Procedure]"
+                    FontName ="Arial"
+
+                    Overlaps =1
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+
+Private Sub cancel_lock_records_Click()
+DoCmd.Close
+End Sub
+
+Private Sub lock_records_Click()
+On Error GoTo lock_records_Err
+    DoCmd.SetWarnings False
+    DoCmd.RunSQL "update transactions set accounts_locked = true where [transactions].[date]<= [Lock Record Date (all records will be locked before this date)] ", -1
+    DoCmd.SetWarnings True
+    MsgBox "The specified transactions records are now locked.", vbInformation, "Lock Transaction Records"
+    Me.Requery
+    DoCmd.Close
+
+lock_records_Exit:
+    Exit Sub
+
+lock_records_Err:
+    MsgBox Error$
+    Resume lock_records_Exit
+
+
+
+End Sub
+
+Private Sub unlock_records_Click()
+    DoCmd.SetWarnings False
+    DoCmd.RunSQL "update transactions set accounts_locked = false", -1
+    DoCmd.SetWarnings True
+    MsgBox "All transactions records are now unlocked.", vbInformation, "Unlock Records"
+    DoCmd.Close
+End Sub

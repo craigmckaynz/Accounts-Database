@@ -1,0 +1,275 @@
+Version =21
+VersionRequired =20
+Begin Form
+    NavigationButtons = NotDefault
+    AllowDesignChanges = NotDefault
+    DefaultView =2
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =10
+    Width =6294
+    DatasheetFontHeight =10
+    ItemSuffix =10
+    Left =645
+    Top =4275
+    Right =10335
+    Bottom =6810
+    DatasheetGridlinesColor =12632256
+    RecSrcDt = Begin
+        0xf1a91311b276e240
+    End
+    RecordSource ="invoices_detail"
+    Caption ="invoices_detail"
+    DatasheetFontName ="Arial"
+    FilterOnLoad =0
+    ShowPageMargins =0
+    DatasheetGridlinesColor12 =12632256
+    NoSaveCTIWhenDisabled =1
+    Begin
+        Begin Label
+            BackStyle =0
+            BackColor =-2147483633
+            ForeColor =-2147483630
+        End
+        Begin Rectangle
+            SpecialEffect =3
+            BackStyle =0
+            BorderLineStyle =0
+            Width =850
+            Height =850
+        End
+        Begin Line
+            BorderLineStyle =0
+            Width =1701
+        End
+        Begin Image
+            BackStyle =0
+            OldBorderStyle =0
+            BorderLineStyle =0
+            PictureAlignment =2
+            Width =1701
+            Height =1701
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            FontName ="MS Sans Serif"
+            BorderLineStyle =0
+        End
+        Begin OptionButton
+            SpecialEffect =2
+            BorderLineStyle =0
+            LabelX =230
+            LabelY =-30
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            BorderLineStyle =0
+            LabelX =230
+            LabelY =-30
+        End
+        Begin OptionGroup
+            SpecialEffect =3
+            BorderLineStyle =0
+            Width =1701
+            Height =1701
+        End
+        Begin BoundObjectFrame
+            SpecialEffect =2
+            OldBorderStyle =0
+            BorderLineStyle =0
+            BackStyle =0
+            Width =4536
+            Height =2835
+            LabelX =-1701
+        End
+        Begin TextBox
+            FELineBreak = NotDefault
+            SpecialEffect =2
+            BorderLineStyle =0
+            Width =1701
+            LabelX =-1701
+            BackColor =-2147483643
+            ForeColor =-2147483640
+            AsianLineBreak =255
+        End
+        Begin ListBox
+            SpecialEffect =2
+            BorderLineStyle =0
+            Width =1701
+            Height =1417
+            LabelX =-1701
+            BackColor =-2147483643
+            ForeColor =-2147483640
+        End
+        Begin ComboBox
+            SpecialEffect =2
+            BorderLineStyle =0
+            Width =1701
+            LabelX =-1701
+            BackColor =-2147483643
+            ForeColor =-2147483640
+        End
+        Begin Subform
+            SpecialEffect =2
+            BorderLineStyle =0
+            Width =1701
+            Height =1701
+        End
+        Begin UnboundObjectFrame
+            SpecialEffect =2
+            OldBorderStyle =1
+            Width =4536
+            Height =2835
+        End
+        Begin ToggleButton
+            Width =283
+            Height =283
+            FontSize =8
+            FontWeight =400
+            FontName ="MS Sans Serif"
+            BorderLineStyle =0
+        End
+        Begin Tab
+            BackStyle =0
+            Width =5103
+            Height =3402
+            BorderLineStyle =0
+        End
+        Begin FormHeader
+            Height =525
+            BackColor =-2147483633
+            Name ="FormHeader"
+            Begin
+                Begin TextBox
+                    FELineBreak = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =1095
+                    Top =120
+                    Width =1440
+                    BackColor =16777215
+                    BorderColor =8421504
+                    ForeColor =0
+                    Name ="Amount_Subtotal"
+                    ControlSource ="=Sum([amount])"
+                    Format ="$#,##0.00;($#,##0.00)"
+                    Tag ="OrderSubtotal"
+                    AsianLineBreak =0
+
+                End
+            End
+        End
+        Begin Section
+            Height =2022
+            BackColor =-2147483633
+            Name ="Detail"
+            Begin
+                Begin TextBox
+                    EnterKeyBehavior = NotDefault
+                    ScrollBars =2
+                    OverlapFlags =85
+                    IMESentenceMode =3
+                    Left =1677
+                    Top =114
+                    Width =4560
+                    Height =450
+                    ColumnWidth =5145
+                    Name ="Description"
+                    ControlSource ="work_description"
+
+                End
+                Begin TextBox
+                    OverlapFlags =85
+                    IMESentenceMode =3
+                    Left =1677
+                    Top =969
+                    Width =2310
+                    Height =255
+                    ColumnWidth =1095
+                    TabIndex =2
+                    Name ="Quantity"
+                    ControlSource ="quantity"
+                    AfterUpdate ="[Event Procedure]"
+                    OnExit ="[Event Procedure]"
+
+                End
+                Begin TextBox
+                    OverlapFlags =85
+                    IMESentenceMode =3
+                    Left =1677
+                    Top =1311
+                    Width =2310
+                    Height =255
+                    ColumnWidth =990
+                    TabIndex =3
+                    Name ="Rate"
+                    ControlSource ="rate"
+                    Format ="$#,##0.00;-$#,##0.00"
+                    AfterUpdate ="[Event Procedure]"
+                    OnExit ="[Event Procedure]"
+
+                End
+                Begin TextBox
+                    OverlapFlags =85
+                    IMESentenceMode =3
+                    Left =1677
+                    Top =1653
+                    Width =2310
+                    Height =255
+                    ColumnWidth =1380
+                    TabIndex =4
+                    Name ="Amount"
+                    ControlSource ="amount"
+                    Format ="$#,##0.00;-$#,##0.00"
+
+                End
+                Begin ComboBox
+                    RowSourceTypeInt =1
+                    OverlapFlags =85
+                    TextAlign =2
+                    IMESentenceMode =3
+                    Left =1677
+                    Top =627
+                    Width =615
+                    ColumnWidth =810
+                    TabIndex =1
+                    Name ="Unit"
+                    ControlSource ="units"
+                    RowSourceType ="Value List"
+                    RowSource ="\"each\";\"Hrs\";\"km\";\"LS\";\"no.\""
+
+                End
+            End
+        End
+        Begin FormFooter
+            Height =585
+            BackColor =-2147483633
+            Name ="FormFooter"
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+
+Private Sub Quantity_AfterUpdate()
+[Amount] = [Quantity] * [Rate]
+End Sub
+
+Private Sub Quantity_Exit(Cancel As Integer)
+[Amount] = [Quantity] * [Rate]
+End Sub
+
+Private Sub Rate_AfterUpdate()
+[Amount] = [Quantity] * [Rate]
+End Sub
+
+Private Sub Rate_Exit(Cancel As Integer)
+[Amount] = [Quantity] * [Rate]
+End Sub
