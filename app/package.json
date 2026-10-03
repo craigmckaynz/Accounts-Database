@@ -1,0 +1,24 @@
+{
+  "name": "mckay-accounts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "McKay Consultants cashbook: transactions, bank balance, GST and year-end reports, problem finder",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "vite",
+    "build": "vite build",
+    "test": "node --test server/test/accounts.test.js",
+    "import": "node server/import-access.js",
+    "demo": "node server/seed-demo.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "mdb-reader": "^3.1.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.1",
+    "vite": "^6.0.7",
+    "vue": "^3.5.13"
+  }
+}

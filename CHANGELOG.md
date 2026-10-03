@@ -3,6 +3,22 @@
 One entry per version installed into the master database, newest first. Each entry says what changed for
 the person using it, which objects changed, and which BUGS_AND_IMPROVEMENTS items it closes.
 
+## Application 0.1.0 - 2026-10-04 (prototype; Access remains the system in use)
+
+The first working version of the JavaScript application in `app/`.
+
+- Transactions screen with one-line entry, quick codes, live GST, automatic references and a running bank balance.
+- Reports: by ledger code, transaction listing, GST summary; print/PDF and download for Excel.
+- Problem finder: statement balances, likely culprits with one-click fixes, and a sweep of the entries.
+- Setup: bank account, opening balance, lock date, ledger codes, quick codes, GST rates.
+- Import from the Access file: 59 ledger codes, 104 quick codes, 3 GST rates, 21,378 transactions; the bank
+  balance agrees with Access to the cent.
+- Tested: 15 automated tests pass; each screen exercised in the browser on made-up data (entry, the fix
+  button, the three reports, setup). On the real data: the running balance of the latest month ends at the
+  bank balance, and a year's ledger report plus the opening balance equals the closing balance.
+- Not tested: printing on paper; the reports against the Access reports the accountant receives; use over
+  several days.
+
 ## V6.21 - 2026-10-04 (tested in the working copy; NOT yet installed in the master)
 
 - Displaying a transaction no longer recalculates and re-saves it. Totals are worked out only when the

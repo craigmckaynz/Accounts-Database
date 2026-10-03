@@ -15,7 +15,14 @@ and the `.accdb` itself stays on the office drive.
 | Access | 32-bit Office, `.accdb` format, opens on the `forms_switchboard` form |
 | Size | 9 tables, 3 saved queries, 13 forms, 8 reports, 2 modules, 1 macro |
 
-## What it does
+## Where this is going
+
+The Access database is being replaced by a JavaScript application in [app/](app/README.md) (first working
+prototype, October 2026): transaction entry, bank balance, reports for the accountant and a problem finder.
+Invoicing is dropped. Until the switch is made the Access database remains the system in use, and what
+follows describes it.
+
+## What the Access database does
 
 **Transactions** (the main screen). One record per bank transaction:
 
@@ -54,6 +61,7 @@ Full detail of every table, form, report and calculation is in [docs/DATABASE.md
 ## Layout
 
 ```
+app/                   the JavaScript application that replaces Access (see app/README.md)
 source/schema.json     tables, fields, indexes, saved queries, object names (structure only)
 source/forms/          one text export per form (design + VBA)
 source/reports/        one per report

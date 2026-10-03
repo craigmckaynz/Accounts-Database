@@ -89,3 +89,23 @@ Every change, however small, goes through these steps.
   `ledger_accounts`) and several objects still use the old names - that is behind many of the open bugs.
 - `tools/load-objects.ps1` declares a mandatory parameter, which makes `$PSScriptRoot` empty in parameter
   defaults under PowerShell 5.1; the script works its folder out in the body instead.
+
+## The JavaScript application (app/)
+
+Craig asked on 4 Oct 2026 for the whole database to be redesigned as a JavaScript application: invoicing
+dropped, the bugs and poor coding removed, modern and pleasant to use, with the bank balance matching as it
+does now, reports to send the accountant for GST returns and year-end tax, and a "problem finder" for the
+entry that stops the books balancing. The screen layout need not copy Access. [app/README.md](app/README.md)
+describes what is built and what is not.
+
+- Node 24+, Express, Vue 3, Vite, plain JavaScript, `node:sqlite`. Keep the SQL plain (PostgreSQL later).
+- Real data: `C:claudeaccounts-dataaccounts.sqlite`, outside the repository. Demo data:
+  `demo.sqlite` in the same folder (`npm run demo`). **Use the demo data for screenshots, browser checks and
+  tests**; check the real data with counts and true/false comparisons only.
+- Money is integer cents everywhere; `shared/money.js` is the only place GST arithmetic lives.
+- After changing anything under `app/`: `npm test`, then `npm run build` (the server serves `dist/`), then
+  check the screen on the demo data.
+- The import must keep reporting "bank balance agrees with Access: YES". If it does not, stop and find out why.
+- Stored GST on imported entries is not to be recalculated in bulk (BUGS_AND_IMPROVEMENTS item 1 is a
+  decision for Craig and the accountant).
+- Rules 1 to 4 above apply to the app as well.
