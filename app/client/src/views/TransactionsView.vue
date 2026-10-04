@@ -5,6 +5,7 @@ import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue';
 import { store, api, loadMeta, toast, money, dollars, accountName } from '../store.js';
 import { toCents, fromCents, gstInside, rateOn, niceDate, isIsoDate } from '../../../shared/money.js';
 import AccountPicker from '../AccountPicker.vue';
+import QuickCodePicker from '../QuickCodePicker.vue';
 
 const rows = ref([]);
 const loading = ref(false);
@@ -13,7 +14,9 @@ const period = ref('');                      // 'YYYY-MM'
 const form = reactive({ id: null, date: '', type: 'P', amount: '', payee: '', payee_code: null, account_code: '', reference: '', refTouched: false, gstManual: false, gst: '' });
 const error = ref(null);
 const saving = ref(false);
-const payeeBox = ref(null);
+const quickBox = ref(null);
+const amountBox = ref(null);
+const focusQuick = () => quickBox.value?.querySelector('input')?.focus();
 const dateBox = ref(null);
 
 const monthLabel = computed(() => {
@@ -75,16 +78,13 @@ async function refreshReference() {
 }
 watch(() => form.date, refreshReference);
 
-function resolvePayee() {
-  const typed = form.payee.trim();
-  const p = store.payees.find(x => x.code === typed.toUpperCase());
-  if (p) {
-    form.payee = p.name;
-    form.payee_code = p.code;
-    if (p.account_code) form.account_code = p.account_code;
-  } else if (!store.payees.some(x => x.code === form.payee_code && x.name === typed)) {
-    form.payee_code = null;
-  }
+// Choosing a quick code fills the payee name and the ledger code it normally goes to, as the Access
+// Transactions form did (Payee_Name and Auto_Code from quick_codes), and moves on to the amount.
+function quickPicked(row) {
+  form.payee_code = row.code;
+  form.payee = row.name;
+  if (row.account_code) form.account_code = row.account_code;
+  nextTick(() => amountBox.value?.focus());
 }
 
 function blank(keepDate = true) {
@@ -102,7 +102,6 @@ function edit(t) {
 
 async function save() {
   if (saving.value) return;
-  resolvePayee();
   error.value = null;
   if (amountCents.value === null) { error.value = { message: 'Enter the amount, e.g. 125.50', field: 'amount_cents' }; return; }
   const body = { date: form.date, type: form.type, amount_cents: amountCents.value, payee_name: form.payee.trim(), payee_code: form.payee_code, account_code: form.account_code.trim(), reference: form.reference.trim() };
@@ -116,7 +115,7 @@ async function save() {
     await loadMeta();
     blank();
     await nextTick();
-    payeeBox.value?.focus();
+    focusQuick();
   } catch (e) { error.value = { message: e.message, field: e.field }; }
   saving.value = false;
 }
@@ -164,14 +163,16 @@ const bad = f => ({ bad: error.value?.field === f });
   <form class="card entry" :class="{ editing }" @submit.prevent="save">
     <div class="row">
       <label class="field" :class="bad('date')"><span>Date</span><input ref="dateBox" v-model="form.date" type="date" required /></label>
-      <label class="field grow2" :class="bad('payee_name')"><span>Payee or quick code</span>
-        <input ref="payeeBox" v-model="form.payee" list="payee-list" autocomplete="off" placeholder="e.g. FUEL, or type a name" @change="resolvePayee" @blur="resolvePayee" /></label>
+      <div ref="quickBox" class="field"><span>Quick code</span>
+        <QuickCodePicker :model-value="form.payee_code || ''" width="84px" @update:model-value="form.payee_code = $event || null" @pick="quickPicked" /></div>
+      <label class="field grow2" :class="bad('payee_name')"><span>Payee</span>
+        <input v-model="form.payee" autocomplete="off" placeholder="Filled in by the quick code, or type a name" /></label>
       <div class="field"><span>Type</span>
         <div class="seg" role="group" aria-label="Payment or receipt">
           <button type="button" :class="{ on: form.type === 'P' }" @click="form.type = 'P'">Payment</button>
           <button type="button" :class="{ on: form.type === 'R' }" @click="form.type = 'R'">Receipt</button>
         </div></div>
-      <label class="field" :class="bad('amount_cents')"><span>Amount</span><input v-model="form.amount" class="num" inputmode="decimal" placeholder="0.00" style="width: 120px" /></label>
+      <label class="field" :class="bad('amount_cents')"><span>Amount</span><input ref="amountBox" v-model="form.amount" class="num" inputmode="decimal" placeholder="0.00" style="width: 120px" /></label>
       <div class="field" :class="bad('account_code')"><span>Ledger code</span><AccountPicker v-model="form.account_code" :show-name="false" width="110px" /></div>
       <label class="field" :class="bad('reference')"><span>Reference</span><input v-model="form.reference" style="width: 120px" @input="form.refTouched = true" /></label>
     </div>
@@ -189,7 +190,6 @@ const bad = f => ({ bad: error.value?.field === f });
       <button class="primary" :disabled="saving || locked">{{ editing ? 'Save changes' : 'Add transaction' }}</button>
     </div>
     <p v-if="error" class="banner error" role="alert">{{ error.message }}</p>
-    <datalist id="payee-list"><option v-for="p in store.payees" :key="p.code" :value="p.code">{{ p.name }}</option></datalist>
   </form>
 
   <div class="card flush">
