@@ -76,6 +76,24 @@ function partCents(l, p) {
 }
 const splitBad = computed(() => chosen.value.filter(l => l.parts.length > 1 && l.parts.some(p => partCents(l, p) === null)));
 function split(l) { l.parts.push(newPart(l)); }
+// A typed amount is shown the way the other figures are: 10000 becomes 10,000.00.
+function tidyAmount(p) { const c = toCents(p.amount); if (c !== null && c > 0) p.amount = money(c); }
+const isSplit = l => l.status === 'new' && l.include && l.parts.length > 1;
+const lastPart = l => l.parts[l.parts.length - 1];
+// The books balance after each part: the parts of a line take the balance from where the line before left it
+// to where the whole line leaves it. Null while an amount is missing or the parts do not fit the line.
+function balanceAfter(l, p) {
+  const end = running.value.get(l.fp)?.books;
+  if (end === undefined) return null;
+  let at = end - l.amount_cents;
+  for (const q of l.parts) {
+    const c = partCents(l, q);
+    if (c === null) return null;
+    at += Math.sign(l.amount_cents) * c;
+    if (q === p) return at;
+  }
+  return null;
+}
 function unsplit(l, p) { l.parts.splice(l.parts.indexOf(p), 1); }
 // Every entry that would be added, in the order shown on screen.
 const entries = computed(() => chosen.value.flatMap(l => l.parts.map(p => ({ id: idOf(l, p), line: l, part: p }))));
@@ -297,8 +315,14 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
                 <td class="num">{{ l.amount_cents < 0 ? money(-l.amount_cents) : '' }}</td>
                 <td class="num">{{ l.amount_cents > 0 ? money(l.amount_cents) : '' }}</td>
               </template>
-              <td v-if="hasBankBalance" class="num muted">{{ l.balance_cents === null ? '' : money(l.balance_cents) }}</td>
-              <td class="num bal" :class="{ off: running.get(l.fp)?.differs }" :title="running.get(l.fp)?.differs ? 'Differs from the bank balance on this line' : ''">{{ money(running.get(l.fp)?.books) }}</td>
+              <template v-if="isSplit(l)">
+                <td v-if="hasBankBalance"></td>
+                <td class="num bal">{{ balanceAfter(l, l.parts[0]) === null ? '' : money(balanceAfter(l, l.parts[0])) }}</td>
+              </template>
+              <template v-else>
+                <td v-if="hasBankBalance" class="num muted">{{ l.balance_cents === null ? '' : money(l.balance_cents) }}</td>
+                <td class="num bal" :class="{ off: running.get(l.fp)?.differs }" :title="running.get(l.fp)?.differs ? 'Differs from the bank balance on this line' : ''">{{ money(running.get(l.fp)?.books) }}</td>
+              </template>
               <template v-if="l.status === 'new'">
                 <td class="nowrap" data-col="payee_code"><QuickCodePicker :model-value="l.parts[0].payee_code || ''" :open-on-focus="false" :disabled="!l.include" @update:model-value="l.parts[0].payee_code = $event || null" @pick="quickPicked(l.parts[0], $event)" /></td>
                 <td class="payee" data-col="payee_name"><input v-model="l.parts[0].payee_name" :disabled="!l.include" aria-label="Payee" /></td>
@@ -315,13 +339,13 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
             <template v-if="l.status === 'new' && l.include">
               <tr v-for="(p, i) in l.parts.slice(1)" :key="p.key" :data-fp="idOf(l, p)" class="part" :class="{ joined: i < l.parts.length - 2 }">
                 <td></td>
-                <td class="muted">↳ part {{ i + 2 }}</td>
+                <td class="nowrap"><input type="date" :value="l.date" disabled aria-label="Date (set on the first row)" title="Change the date on the first row of this line" /></td>
                 <td class="nowrap" data-col="reference"><input class="ref" :class="{ need: clash(idOf(l, p)) || (p.refMode === 'manual' && !p.ref) }" :value="refs.get(idOf(l, p)) || ''" :placeholder="wantsInvoice(l) ? 'invoice no.' : 'automatic'" aria-label="Reference" @change="setReference(l, p, $event.target.value)" /></td>
-                <td class="muted desc">of {{ money(Math.abs(l.amount_cents)) }}</td>
-                <td class="num" :data-col="l.amount_cents < 0 ? 'amount' : null"><input v-if="l.amount_cents < 0" v-model="p.amount" class="num amt" :class="{ need: partCents(l, p) === null }" inputmode="decimal" placeholder="0.00" aria-label="Amount of this part" /></td>
-                <td class="num" :data-col="l.amount_cents > 0 ? 'amount' : null"><input v-if="l.amount_cents > 0" v-model="p.amount" class="num amt" :class="{ need: partCents(l, p) === null }" inputmode="decimal" placeholder="0.00" aria-label="Amount of this part" /></td>
-                <td v-if="hasBankBalance"></td>
-                <td></td>
+                <td class="desc" :title="l.description + ' ' + l.detail + ' - part ' + (i + 2) + ' of ' + l.parts.length + ', line total ' + money(Math.abs(l.amount_cents))">{{ l.description }} <small>(split) {{ l.detail }}</small></td>
+                <td class="num" :data-col="l.amount_cents < 0 ? 'amount' : null"><input v-if="l.amount_cents < 0" v-model="p.amount" class="num amt" :class="{ need: partCents(l, p) === null }" inputmode="decimal" placeholder="0.00" aria-label="Amount of this part" @change="tidyAmount(p)" /></td>
+                <td class="num" :data-col="l.amount_cents > 0 ? 'amount' : null"><input v-if="l.amount_cents > 0" v-model="p.amount" class="num amt" :class="{ need: partCents(l, p) === null }" inputmode="decimal" placeholder="0.00" aria-label="Amount of this part" @change="tidyAmount(p)" /></td>
+                <td v-if="hasBankBalance" class="num muted">{{ p === lastPart(l) && l.balance_cents !== null ? money(l.balance_cents) : '' }}</td>
+                <td class="num bal" :class="{ off: p === lastPart(l) && running.get(l.fp)?.differs }">{{ balanceAfter(l, p) === null ? '' : money(balanceAfter(l, p)) }}</td>
                 <td class="nowrap" data-col="payee_code"><QuickCodePicker :model-value="p.payee_code || ''" :open-on-focus="false" @update:model-value="p.payee_code = $event || null" @pick="quickPicked(p, $event)" /></td>
                 <td class="payee" data-col="payee_name"><input v-model="p.payee_name" aria-label="Payee" /></td>
                 <td class="nowrap" data-col="account_code"><AccountPicker v-model="p.account_code" :open-on-focus="false" :need="!known(p.account_code)" width="62px" /></td>
@@ -405,7 +429,7 @@ td.off { color: var(--amber); font-weight: 650; }
 .review td.payee .pill { line-height: 14px; font-size: 11px; padding: 0 6px; }
 .review td.tick { width: 22px; padding-right: 0; }
 .review input.ref { width: 84px; }
-.review input.amt { width: 78px; }
+.review input.amt { width: 84px; margin-right: -7px; font-variant-numeric: tabular-nums; }
 .review input.need { border-color: var(--amber); box-shadow: 0 0 0 2px var(--amber-soft); }
 .review td.desc { max-width: 132px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .review td.payee { min-width: 112px; max-width: 150px; }
