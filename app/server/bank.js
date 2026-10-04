@@ -338,8 +338,16 @@ export function analyse(db, lines) {
     const toAdd = out.filter(l => l.status === 'new').reduce((s, l) => s + l.amount_cents, 0);
     closing = { date: end.date, balance_cents: end.balance_cents, book_cents: book, book_after_cents: book + toAdd };
   }
+  // For a running balance down the statement: the books' balance before it starts, less entries dated
+  // earlier that a statement line claims (they are counted at their line), and the other entries in the
+  // statement's dates, which count on their own date.
+  const usedEarly = books.filter(t => used.has(t.id) && t.date < first).reduce((s, t) => s + signedOf(t), 0);
+  const running = {
+    base_cents: bankBalance(db, addDays(first, -1)) - usedEarly,
+    others: books.filter(t => t.date >= first && t.date <= last && !used.has(t.id) && t.amount_cents).map(t => ({ id: t.id, date: t.date, signed_cents: signedOf(t) }))
+  };
   return {
-    from: first, to: last, lines: out, book_only: bookOnly, closing,
+    from: first, to: last, lines: out, book_only: bookOnly, closing, running,
     counts: { total: out.length, done: out.filter(l => l.status === 'done').length, matched: out.filter(l => l.status === 'matched').length, fresh: out.filter(l => l.status === 'new').length, possible: out.filter(l => l.possible).length, book_only: bookOnly.length }
   };
 }

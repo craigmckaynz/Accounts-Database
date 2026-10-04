@@ -4,6 +4,7 @@
 import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue';
 import { store, api, loadMeta, toast, money, dollars, accountName } from '../store.js';
 import { toCents, fromCents, gstInside, rateOn, niceDate, isIsoDate } from '../../../shared/money.js';
+import AccountPicker from '../AccountPicker.vue';
 
 const rows = ref([]);
 const loading = ref(false);
@@ -171,7 +172,7 @@ const bad = f => ({ bad: error.value?.field === f });
           <button type="button" :class="{ on: form.type === 'R' }" @click="form.type = 'R'">Receipt</button>
         </div></div>
       <label class="field" :class="bad('amount_cents')"><span>Amount</span><input v-model="form.amount" class="num" inputmode="decimal" placeholder="0.00" style="width: 120px" /></label>
-      <label class="field" :class="bad('account_code')"><span>Ledger code</span><input v-model="form.account_code" list="account-list" autocomplete="off" style="width: 110px" /></label>
+      <div class="field" :class="bad('account_code')"><span>Ledger code</span><AccountPicker v-model="form.account_code" :show-name="false" width="110px" /></div>
       <label class="field" :class="bad('reference')"><span>Reference</span><input v-model="form.reference" style="width: 120px" @input="form.refTouched = true" /></label>
     </div>
     <div class="row under">
@@ -189,7 +190,6 @@ const bad = f => ({ bad: error.value?.field === f });
     </div>
     <p v-if="error" class="banner error" role="alert">{{ error.message }}</p>
     <datalist id="payee-list"><option v-for="p in store.payees" :key="p.code" :value="p.code">{{ p.name }}</option></datalist>
-    <datalist id="account-list"><option v-for="a in store.accounts.filter(a => a.active)" :key="a.code" :value="a.code">{{ a.description }}{{ a.sub_description ? ' / ' + a.sub_description : '' }}</option></datalist>
   </form>
 
   <div class="card flush">

@@ -3,6 +3,18 @@
 One entry per version installed into the master database, newest first. Each entry says what changed for
 the person using it, which objects changed, and which BUGS_AND_IMPROVEMENTS items it closes.
 
+## Application 0.3.1 - 2026-10-04 (prototype)
+
+- Bank import preview shows a running balance on every line: the bank's own balance (when the file has
+  one) beside the books' balance as it will be with the lines ticked. The first line where the two part is
+  highlighted; ticking, unticking and "same entry" decisions update it at once.
+- Ledger code box replaced by a picker used on the import preview and the Transactions entry line: code and
+  description on one line, in the box's row and in the list; the list shows 20 or more codes at a time
+  (given a window at least 560 px high), filters as you type on code or description, and works with the
+  arrow keys, Enter and Tab.
+- Tested: 31 automated tests pass; in the browser at 1366 x 768 with 30 demo codes the list showed 21 lines,
+  each on one line, inside the window, from both screens; the balance columns followed ticks and unticks.
+
 ## Application 0.3.0 - 2026-10-04 (prototype)
 
 - Bank import suggests the payee, quick code and ledger code from past entries, matching the bank's
