@@ -16,7 +16,9 @@ const active = ref(0);
 const place = ref({});
 
 const label = a => (a.sub_description ? `${a.description} / ${a.sub_description}` : a.description);
-const all = computed(() => store.accounts.filter(a => a.active || a.code === props.modelValue));
+// In description order, so a code is found by what it is for; codes break ties.
+const all = computed(() => store.accounts.filter(a => a.active || a.code === props.modelValue)
+  .slice().sort((a, b) => label(a).localeCompare(label(b), 'en', { sensitivity: 'base', numeric: true }) || a.code.localeCompare(b.code, 'en', { numeric: true })));
 const current = computed(() => store.accounts.find(a => a.code === props.modelValue.trim()));
 const options = computed(() => {
   const q = props.modelValue.trim().toLowerCase();
@@ -100,7 +102,7 @@ function leave() {
     <Teleport to="body">
       <ul v-if="open && options.length" ref="list" class="picker-list" :style="place" role="listbox">
         <li v-for="(a, i) in options" :key="a.code" :class="{ on: i === active, cur: a.code === modelValue.trim() }" role="option" :aria-selected="i === active" @mousedown.prevent="pick(a)" @mousemove="active = i">
-          <b>{{ a.code }}</b><span>{{ label(a) }}</span><small v-if="a.gst_exempt">no GST</small>
+          <span>{{ label(a) }}</span><b>{{ a.code }}</b><small v-if="a.gst_exempt">no GST</small>
         </li>
       </ul>
     </Teleport>

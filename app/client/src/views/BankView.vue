@@ -182,37 +182,33 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
         <button class="primary" :disabled="busy || (!chosen.length && !toTick)" @click="review">
           {{ chosen.length ? `Add ${chosen.length} ${chosen.length === 1 ? 'entry' : 'entries'}…` : 'Tick off matched entries…' }}</button>
       </div>
-      <table v-if="visible.length">
-        <thead><tr><th></th><th>Date</th><th>Bank description</th><th class="num">Payment</th><th class="num">Receipt</th><th>Payee in the books</th><th>Ledger code</th><th class="num">GST</th><th v-if="hasBankBalance" class="num">Bank balance</th><th class="num">Books balance</th><th>Where the codes came from</th></tr></thead>
+      <div v-if="visible.length" class="fit"><table class="review">
+        <thead><tr><th></th><th>Date</th><th>Bank description</th><th class="num">Payment</th><th class="num">Receipt</th><th v-if="hasBankBalance" class="num">Bank bal.</th><th class="num">Books bal.</th><th>Payee in the books</th><th>Ledger code</th><th class="num">GST</th></tr></thead>
         <tbody>
           <template v-for="l in visible" :key="l.fp">
             <tr :class="{ dim: l.status !== 'new' || !l.include, joined: l.possible }">
-              <td><input v-if="l.status === 'new' && !l.possible" type="checkbox" v-model="l.include" :aria-label="'Add ' + l.description" /></td>
+              <td class="tick"><input v-if="l.status === 'new' && !l.possible" type="checkbox" v-model="l.include" :aria-label="'Add ' + l.description" /></td>
               <td class="nowrap"><input v-if="l.status === 'new' && l.include" type="date" v-model="l.date" aria-label="Date" /><template v-else>{{ niceDate(l.date) }}</template></td>
-              <td>{{ l.description }} <small>{{ l.detail }}</small></td>
+              <td class="desc" :title="l.description + ' ' + l.detail">{{ l.description }} <small>{{ l.detail }}</small></td>
               <td class="num">{{ l.amount_cents < 0 ? money(-l.amount_cents) : '' }}</td>
               <td class="num">{{ l.amount_cents > 0 ? money(l.amount_cents) : '' }}</td>
+              <td v-if="hasBankBalance" class="num muted">{{ l.balance_cents === null ? '' : money(l.balance_cents) }}</td>
+              <td class="num bal" :class="{ off: running.get(l.fp)?.differs }" :title="running.get(l.fp)?.differs ? 'Differs from the bank balance on this line' : ''">{{ money(running.get(l.fp)?.books) }}</td>
               <template v-if="l.status === 'new'">
-                <td><input v-model="l.payee_name" list="bank-payees" :disabled="!l.include" style="width: 100%; min-width: 150px" @change="resolvePayee(l); spread(l)" aria-label="Payee or quick code" />
-                  <small v-if="l.payee_code">quick code {{ l.payee_code }}</small></td>
-                <td class="nowrap"><AccountPicker v-model="l.account_code" :disabled="!l.include" :need="l.include && !known(l.account_code)" @change="spread(l)" /></td>
+                <td class="payee"><input v-model="l.payee_name" list="bank-payees" :disabled="!l.include" @change="resolvePayee(l); spread(l)" aria-label="Payee or quick code" />
+                  <small :title="l.suggestion.from || ''">{{ l.payee_code ? l.payee_code + ' · ' : '' }}{{ l.suggestion.from || 'not seen before — choose a code' }}</small></td>
+                <td class="nowrap"><AccountPicker v-model="l.account_code" :disabled="!l.include" :need="l.include && !known(l.account_code)" width="62px" @change="spread(l)" /></td>
                 <td class="num">{{ gstOf(l) === null ? '' : money(gstOf(l)) }}</td>
-                <td v-if="hasBankBalance" class="num">{{ l.balance_cents === null ? '' : money(l.balance_cents) }}</td>
-                <td class="num" :class="{ off: running.get(l.fp)?.differs }">{{ money(running.get(l.fp)?.books) }}</td>
-                <td><small>{{ l.suggestion.from || 'not seen before — choose a code' }}</small></td>
               </template>
               <template v-else>
-                <td>{{ l.transaction.payee_name }} <small>{{ l.transaction.reference }}{{ l.transaction.date !== l.date ? ' · dated ' + niceDate(l.transaction.date) : '' }}</small></td>
-                <td>{{ l.transaction.account_code }} <small>{{ accountName(l.transaction.account_code) }}</small></td>
+                <td class="payee">{{ l.transaction.payee_name }}<small><span class="pill ok">In the books</span> {{ l.transaction.reference }}{{ l.transaction.date !== l.date ? ' · dated ' + niceDate(l.transaction.date) : '' }}</small></td>
+                <td class="nowrap">{{ l.transaction.account_code }} <small>{{ accountName(l.transaction.account_code) }}</small></td>
                 <td class="num">{{ money(l.transaction.gst_cents, { blankZero: true }) }}</td>
-                <td v-if="hasBankBalance" class="num">{{ l.balance_cents === null ? '' : money(l.balance_cents) }}</td>
-                <td class="num" :class="{ off: running.get(l.fp)?.differs }">{{ money(running.get(l.fp)?.books) }}</td>
-                <td><span class="pill ok">In the books</span></td>
               </template>
             </tr>
             <tr v-if="l.possible" class="ask">
               <td></td>
-              <td :colspan="hasBankBalance ? 10 : 9">
+              <td :colspan="hasBankBalance ? 9 : 8">
                 <span class="pill warn">Possibly already entered</span>
                 The books have <b>{{ l.possible.reference }}</b> {{ l.possible.payee_name }} for the same amount, dated {{ niceDate(l.possible.date) }}.
                 <span class="seg" style="margin-left: 8px"><button :class="{ on: l.decision === 'same' }" @click="decide(l, 'same')">Same entry — don’t add</button><button :class="{ on: l.decision === 'separate' }" @click="decide(l, 'separate')">Separate — add it</button></span>
@@ -220,7 +216,7 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
             </tr>
           </template>
         </tbody>
-      </table>
+      </table></div>
       <p v-else class="empty">Every line of this statement is already in the books.</p>
     </div>
 
@@ -277,8 +273,23 @@ tr.joined td { border-bottom: 0; }
 tr.ask td { background: var(--amber-soft); padding-top: 8px; padding-bottom: 8px; }
 .nowrap { white-space: nowrap; }
 td input { padding: 4px 7px; }
-td input[type="date"] { width: 132px; }
 td.off { color: var(--amber); font-weight: 650; }
+/* The review table is kept narrow enough to show every column, balances included, without scrolling
+   sideways on a laptop screen; if the window is narrower still, it scrolls rather than hiding columns. */
+.fit { overflow-x: auto; }
+.review { font-size: 12.5px; }
+.review th, .review td { padding: 4px 6px; }
+.review td.tick { width: 22px; padding-right: 0; }
+.review td.desc { max-width: 165px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.review td.payee { min-width: 130px; max-width: 185px; }
+.review :deep(.picker-name) { max-width: 112px; }
+.review :deep(.picker) { gap: 5px; }
+.review td.payee input { width: 100%; display: block; }
+.review td.payee small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.review td.bal { font-weight: 600; }
+.review input { font-size: 12.5px; padding: 3px 5px; }
+.review input[type="date"] { width: 106px; }
+.review .seg button { padding: 3px 9px; }
 .veil { position: fixed; inset: 0; background: rgba(10, 20, 25, .55); display: grid; place-items: center; z-index: 30; padding: 16px; }
 .dialog { width: min(520px, 100%); margin: 0; box-shadow: 0 20px 60px rgba(0, 0, 0, .35); }
 .dialog td.in { padding-left: 28px; color: var(--muted); }
