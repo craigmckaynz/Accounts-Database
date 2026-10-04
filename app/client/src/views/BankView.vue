@@ -343,7 +343,7 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
             </tr>
             <template v-if="l.status === 'new'">
               <tr v-for="(p, i) in l.parts.slice(1)" :key="p.key" :data-fp="idOf(l, p)" class="part" :class="{ joined: i < l.parts.length - 2, dim: !l.include }">
-                <td class="tick"><input type="checkbox" v-model="l.include" :aria-label="'Add ' + l.description + ' (all its parts)'" title="Ticks or unticks the whole line, all its parts together" /></td>
+                <td></td>
                 <td class="nowrap"><input type="date" :value="l.date" disabled aria-label="Date (set on the first row)" title="Change the date on the first row of this line" /></td>
                 <td class="nowrap" data-col="reference"><input class="ref" :class="{ need: l.include && (clash(idOf(l, p)) || (p.refMode === 'manual' && !p.ref)) }" :value="refs.get(idOf(l, p)) || ''" :placeholder="wantsInvoice(l) ? 'invoice no.' : 'automatic'" aria-label="Reference" :disabled="!l.include" @change="setReference(l, p, $event.target.value)" /></td>
                 <td class="desc" :title="l.description + ' ' + l.detail + ' - part ' + (i + 2) + ' of ' + l.parts.length + ', line total ' + money(Math.abs(l.amount_cents))">{{ l.description }} <small>(split) {{ l.detail }}</small></td>
