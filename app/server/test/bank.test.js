@@ -187,3 +187,25 @@ test('references: the preview gives the next number for each month, and the impo
   const again = preview(db, ['Date,Amount,Payee', '05/08/2026,-14.00,SHOP FOUR'].join('\n'));
   assert.throws(() => commit(db, { add: [{ ...again.lines[0], bank_date: again.lines[0].date, payee_name: 'X', account_code: '270', reference: 'PC-17' }] }), /PC-17 is already used/);
 });
+
+test('a statement line split into parts: each part is its own entry, and the parts must add up', () => {
+  const db = fresh();
+  const csv = ['Date,Amount,Payee', '10/08/2026,32200.00,PINNACLES CI'].join('\n');
+  const p = preview(db, csv);
+  const line = p.lines[0];
+  const part = (fp, cents, reference) => ({ ...line, fp, bank_date: line.date, amount_cents: cents, line_cents: line.amount_cents, reference, payee_name: 'PINNACLES', account_code: '230', allow_duplicate: true });
+
+  assert.throws(() => commit(db, { add: [part(line.fp, 2000000, 'F6-101'), part(line.fp + '#2', 1000000, 'F6-102')] }), /come to 30000.00, but the bank line is 32200.00/);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM transactions').get().n, 0);
+
+  const r = commit(db, { add: [part(line.fp, 2000000, 'F6-101'), part(line.fp + '#2', 1000000, 'F6-102'), part(line.fp + '#3', 220000, 'F6-103')] });
+  assert.equal(r.added, 3);
+  assert.deepEqual(db.prepare('SELECT reference, amount_cents, type FROM transactions ORDER BY id').all().map(t => [t.reference, t.amount_cents, t.type]),
+    [['F6-101', 2000000, 'R'], ['F6-102', 1000000, 'R'], ['F6-103', 220000, 'R']]);
+  assert.equal(ledger.bankBalance(db), 100000 + 3220000);
+
+  // the same statement again: the line is recognised as done and its parts are not listed as strays
+  const again = preview(db, csv);
+  assert.equal(again.lines[0].status, 'done');
+  assert.equal(again.book_only.length, 0);
+});

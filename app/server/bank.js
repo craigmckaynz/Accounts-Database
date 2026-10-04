@@ -267,6 +267,19 @@ export function commit(db, { add = [], matched = [], checkpoint = null }) {
     // The last line of defence against doubling up, whatever the screen sent: an entry of the same amount
     // near the bank's date that no statement line has claimed.
     const twin = db.prepare('SELECT reference, date FROM transactions WHERE bank_ref IS NULL AND type = ? AND amount_cents = ? AND date >= ? AND date <= ? ORDER BY date LIMIT 1');
+    // A statement line may arrive as several parts (fingerprints "line", "line#2", ...). Together they must come
+    // to exactly the bank's figure for that line, or nothing is added.
+    const lineTotals = new Map();
+    for (const l of add) {
+      if (!Number.isInteger(l.line_cents)) continue;
+      const base = String(l.fp).split('#')[0];
+      const t = lineTotals.get(base) || { want: l.line_cents, got: 0, name: l.description };
+      t.got += l.amount_cents;
+      lineTotals.set(base, t);
+    }
+    for (const t of lineTotals.values()) {
+      if (t.got !== t.want) throw new UserError(`The parts of ${t.name} come to ${(Math.abs(t.got) / 100).toFixed(2)}, but the bank line is ${(Math.abs(t.want) / 100).toFixed(2)}. Nothing was added.`);
+    }
     const sorted = add.slice().sort((a, b) => a.date.localeCompare(b.date) || a.n - b.n);
     for (const l of sorted) {
       if (!l.fp || hasFp.get(l.fp)) continue;                    // already brought in

@@ -3,6 +3,24 @@
 One entry per version installed into the master database, newest first. Each entry says what changed for
 the person using it, which objects changed, and which BUGS_AND_IMPROVEMENTS items it closes.
 
+## Application 0.5.0 - 2026-10-05 (prototype)
+
+- Import preview: a statement line can be split into parts, each its own entry with its own amount,
+  reference, quick code, payee and ledger code. The first part holds whatever the others leave; the parts
+  must come to the bank's figure (checked on screen and again by the server).
+- References: money going out is numbered automatically as before. Money coming in starts with an empty
+  reference for the invoice number, and must be given one before adding (typing just the bank prefix, "bk",
+  gives it the next bank number). The real data showed why: since 2024 every payment has a bk reference,
+  while 125 of 200 receipts carry something else.
+- Changing a bank reference renumbers every automatic reference below it from that number. Other
+  references (invoice numbers) use up no bank number.
+- A possible duplicate confirmed as separate becomes an ordinary line. Quick code box fills in when the
+  list is down to one row. Up/Down and Ctrl+' work on split parts too.
+- Tested: 30 automated tests pass. In the browser on a made-up statement: a receipt split into three
+  (two invoice numbers and a bank number), the remainder shown on the first part and flagged when the
+  parts exceed the line, renumbering after editing a bank reference, the missing-reference block, and six
+  entries added with the references and amounts shown in the preview.
+
 ## Application 0.4.0 - 2026-10-04 (prototype)
 
 - Bank import no longer suggests codes. Quick code and ledger code start empty on every new line, at

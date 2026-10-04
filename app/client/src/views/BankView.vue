@@ -1,9 +1,13 @@
 <script setup>
 // Bank statement import. Choosing a file only shows a preview: every line can be checked and edited, and
 // nothing reaches the books until Add is pressed and confirmed.
+//
+// A new statement line becomes one entry in the books, or several when it is split (one receipt covering
+// three invoices, one payment across two ledger codes). Each line therefore carries `parts`: the first is
+// the line itself and holds whatever amount the other parts leave.
 import { ref, computed } from 'vue';
 import { store, api, loadMeta, toast, money, dollars, accountName, openTransaction } from '../store.js';
-import { niceDate, isIsoDate } from '../../../shared/money.js';
+import { niceDate, isIsoDate, toCents } from '../../../shared/money.js';
 import AccountPicker from '../AccountPicker.vue';
 import QuickCodePicker from '../QuickCodePicker.vue';
 
@@ -16,6 +20,11 @@ const error = ref(null);
 const show = ref('new');
 const dragging = ref(false);
 const confirming = ref(false);
+
+let partSeq = 0;
+// Money going out is numbered automatically (bk26/08-18 ...). Money coming in starts with an empty reference:
+// the invoice number goes there. Quick code and ledger code start empty on every part - nothing is guessed.
+const newPart = l => ({ key: ++partSeq, amount: '', refMode: l.amount_cents > 0 ? 'manual' : 'auto', ref: '', payee_code: null, payee_name: l.payee_name, account_code: '' });
 
 async function readFile(file) {
   if (!file) return;
@@ -31,14 +40,11 @@ async function run() {
     mapping.value = { ...d.mapping };
     if (!d.needs_mapping) {
       for (const l of d.lines) {
-        l.bank_date_or_date = l.date;             // the bank's date, kept when the entry's date is edited
+        l.bank_date = l.date;                     // the bank's date, kept when the entry's date is edited
         if (l.status !== 'new') continue;
-        l.bank_date = l.date;
-        l.reference = '';                         // empty = numbered automatically
         l.decision = null;                        // for a possible duplicate: 'same' or 'separate'
         l.include = !l.possible;                  // a possible duplicate is held back until decided
-        l.payee_code = null;                      // quick code and ledger code start empty: nothing is guessed,
-        l.account_code = '';                      // so every new line is looked at and coded by hand
+        l.parts = [newPart(l)];
       }
       show.value = d.counts.fresh ? 'new' : 'all';
     }
@@ -55,11 +61,26 @@ const undecided = computed(() => fresh.value.filter(l => l.possible && !l.decisi
 const possibleLeft = computed(() => fresh.value.filter(asking).length);
 const leftOut = computed(() => fresh.value.filter(l => !l.include && l.decision !== 'same' && !(l.possible && !l.decision)));
 const known = code => store.accounts.some(a => a.code === code.trim());
-const uncoded = computed(() => chosen.value.filter(l => !known(l.account_code)));
 const badDate = computed(() => chosen.value.filter(l => !isIsoDate(l.date)));
 const toTick = computed(() => data.value.lines.filter(l => l.status === 'matched').length + same.value.length);
 const visible = computed(() => (show.value === 'new' ? fresh.value : data.value.lines));
-const sum = (rows, sign) => rows.reduce((s, l) => s + (Math.sign(l.amount_cents) === sign ? Math.abs(l.amount_cents) : 0), 0);
+
+// ---- parts and their amounts
+const idOf = (l, p) => (p === l.parts[0] ? l.fp : `${l.fp}#${p.key}`);
+// Positive cents for a part, or null when its amount is not a usable figure. The first part is what is left.
+function partCents(l, p) {
+  if (p !== l.parts[0]) { const c = toCents(p.amount); return c !== null && c > 0 ? c : null; }
+  let rest = Math.abs(l.amount_cents);
+  for (const o of l.parts.slice(1)) { const c = toCents(o.amount); if (c === null || c <= 0) return null; rest -= c; }
+  return rest > 0 ? rest : null;
+}
+const splitBad = computed(() => chosen.value.filter(l => l.parts.length > 1 && l.parts.some(p => partCents(l, p) === null)));
+function split(l) { l.parts.push(newPart(l)); }
+function unsplit(l, p) { l.parts.splice(l.parts.indexOf(p), 1); }
+// Every entry that would be added, in the order shown on screen.
+const entries = computed(() => chosen.value.flatMap(l => l.parts.map(p => ({ id: idOf(l, p), line: l, part: p }))));
+const uncoded = computed(() => entries.value.filter(e => !known(e.part.account_code)));
+const total = sign => entries.value.reduce((s, e) => s + (Math.sign(e.line.amount_cents) === sign ? partCents(e.line, e.part) || 0 : 0), 0);
 
 // A possible duplicate asks its question until it is answered "separate"; after that it is a line like any other.
 const asking = l => Boolean(l.possible) && l.decision !== 'separate';
@@ -69,10 +90,10 @@ function decide(l, what) {
 }
 // Choosing a quick code fills the payee name and the ledger code it normally goes to, as the Access
 // Transactions form did (Payee_Name and Auto_Code from quick_codes).
-function quickPicked(l, row) {
-  l.payee_code = row.code;
-  l.payee_name = row.name;
-  if (row.account_code) l.account_code = row.account_code;
+function quickPicked(p, row) {
+  p.payee_code = row.code;
+  p.payee_name = row.name;
+  if (row.account_code) p.account_code = row.account_code;
 }
 // The books' balance after each statement line, as it will be with the lines ticked now. Where everything is
 // in order it equals the bank's balance on that line; the first line where they part is where to look.
@@ -89,39 +110,54 @@ const running = computed(() => {
   for (const l of d.lines) {
     const counts = l.status !== 'new' || l.decision === 'same' || (l.include && l.decision !== 'same');
     if (counts) cum += l.amount_cents;
-    const books = base + cum + others.reduce((s, o) => s + (o.date <= l.bank_date_or_date ? o.signed_cents : 0), 0);
+    const books = base + cum + others.reduce((s, o) => s + (o.date <= l.bank_date ? o.signed_cents : 0), 0);
     out.set(l.fp, { books, differs: l.balance_cents !== null && l.balance_cents !== books });
   }
   return out;
 });
-// References, as the Access form offered them: the bank prefix, the year and month of the entry's date,
-// and the next number in that month (bk26/08-01, -02 ...). The ticked lines are numbered in date order,
-// carrying on from the last one in the books; a reference typed over is kept as typed.
+
+// ---- references
+// Bank references follow the Access form: prefix, year/month of the entry's date, and the next number in that
+// month (bk26/08-18, -19 ...), carrying on from the last one in the books. They are worked out down the
+// screen, so typing a bank reference over one of them renumbers every automatic one below it from there.
+// Anything else typed (an invoice number) is kept as it is and uses up no bank number.
+const prefix = computed(() => store.settings.bank_prefix || 'bk');
+const bankRef = computed(() => new RegExp('^' + prefix.value + '(\\d\\d)/(\\d\\d)-(\\d+)$', 'i'));
 const refs = computed(() => {
   const out = new Map();
   const next = {};
-  for (const l of chosen.value.slice().sort((a, b) => a.date.localeCompare(b.date) || a.n - b.n)) {
-    if (l.reference) { out.set(l.fp, l.reference); continue; }
-    const month = (l.date || '').slice(0, 7);
+  for (const e of entries.value) {
+    const p = e.part;
+    if (p.refMode === 'manual') {
+      const v = p.ref.trim();
+      out.set(e.id, v);
+      const m = bankRef.value.exec(v);
+      if (m) next[`20${m[1]}-${m[2]}`] = Number(m[3]) + 1;       // the ones below carry on from this
+      continue;
+    }
+    const month = (e.line.date || '').slice(0, 7);
     const start = data.value.next_refs?.[month];
-    if (!start) continue;                           // outside the months known here: numbered when added
+    if (!start) { out.set(e.id, ''); continue; }                 // a month not known here: numbered when added
     const cut = start.lastIndexOf('-') + 1;
     if (!(month in next)) next[month] = Number(start.slice(cut));
-    let ref;
-    do { ref = start.slice(0, cut) + String(next[month]++).padStart(2, '0'); } while (chosen.value.some(o => o.reference === ref));
-    out.set(l.fp, ref);
+    out.set(e.id, start.slice(0, cut) + String(next[month]++).padStart(2, '0'));
   }
   return out;
 });
-function setReference(l, value) {
+function setReference(l, p, value) {
   const v = value.trim();
-  l.reference = v === refs.value.get(l.fp) ? l.reference : v;
+  if (v === (refs.value.get(idOf(l, p)) || '') && p.refMode === 'auto') return;
+  if (v === '') { p.ref = ''; p.refMode = l.amount_cents > 0 ? 'manual' : 'auto'; }        // back to how it started
+  else if (v.toLowerCase() === prefix.value.toLowerCase()) { p.ref = ''; p.refMode = 'auto'; }   // just "bk": the next bank number
+  else { p.ref = v; p.refMode = 'manual'; }
 }
-const clashes = computed(() => { const seen = new Set(), dup = new Set(); for (const r of refs.value.values()) { if (seen.has(r)) dup.add(r); seen.add(r); } return dup; });
+const clashes = computed(() => { const seen = new Set(), dup = new Set(); for (const r of refs.value.values()) { if (!r) continue; const k = r.toLowerCase(); if (seen.has(k)) dup.add(k); seen.add(k); } return dup; });
+const clash = id => clashes.value.has((refs.value.get(id) || '').toLowerCase());
+const needRef = computed(() => entries.value.filter(e => e.part.refMode === 'manual' && !e.part.ref.trim()));
+
 // ---- keyboard in the review table
-// Up and Down move to the same box on the line above or below (unless a list is open, where they move within
-// the list). Ctrl+' copies the value from the same column of the nearest line above, as in Access.
-const COLUMNS = ['date', 'reference', 'payee_code', 'payee_name', 'account_code'];
+// Up and Down move to the same box on the row above or below (unless a list is open, where they move within
+// the list). Ctrl+' copies the value from the same column of the row above, as in Access.
 function reviewKey(e) {
   const box = e.target;
   if (!(box instanceof HTMLInputElement) || box.type === 'checkbox') return;
@@ -145,17 +181,17 @@ function reviewKey(e) {
   if ((e.key === "'" || e.code === 'Quote') && (e.ctrlKey || e.metaKey) && !e.altKey) {
     e.preventDefault();
     e.stopPropagation();
-    const lines = visible.value;
-    const at = lines.findIndex(l => l.fp === row.dataset.fp);
-    const line = lines[at];
-    let above = null;
-    for (let i = at - 1; i >= 0 && !above; i--) if (lines[i].status === 'new' && lines[i].include) above = lines[i];
-    if (!line || !above) return;
-    if (col === 'reference') setReference(line, refs.value.get(above.fp) || '');
+    const list = entries.value;
+    const at = list.findIndex(x => x.id === row.dataset.fp);
+    if (at < 1) return;
+    const here = list[at], above = list[at - 1];
+    if (col === 'date') here.line.date = above.line.date;
+    else if (col === 'amount') here.part.amount = above.part === above.line.parts[0] ? '' : above.part.amount;
+    else if (col === 'reference') setReference(here.line, here.part, refs.value.get(above.id) || '');
     else if (col === 'payee_code') {
-      const q = store.payees.find(p => p.code === above.payee_code);
-      if (q) quickPicked(line, { code: q.code, name: q.name, account_code: q.account_code || '' }); else line.payee_code = null;
-    } else line[col] = above[col];
+      const q = store.payees.find(p => p.code === above.part.payee_code);
+      if (q) quickPicked(here.part, { code: q.code, name: q.name, account_code: q.account_code || '' }); else here.part.payee_code = null;
+    } else here.part[col] = above.part[col];
   }
 }
 function tickAll(on) { for (const l of fresh.value) if (!asking(l)) l.include = on; }
@@ -168,11 +204,14 @@ const closing = computed(() => {
   return { ...c, after, diff: after - c.balance_cents };
 });
 
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 function review() {
   error.value = null;
-  if (uncoded.value.length) { error.value = `${uncoded.value.length} ticked ${uncoded.value.length === 1 ? 'line needs' : 'lines need'} a ledger code.`; return; }
+  if (splitBad.value.length) { const l = splitBad.value[0]; error.value = `The split of ${l.description} (${money(Math.abs(l.amount_cents))}) does not work: each part needs an amount, and together they must come to less than the line, leaving something for the first part.`; return; }
+  if (uncoded.value.length) { error.value = `${plural(uncoded.value.length, 'entry needs', 'entries need')} a ledger code.`; return; }
+  if (needRef.value.length) { error.value = `${plural(needRef.value.length, 'receipt needs', 'receipts need')} a reference: the invoice number, or type ${prefix.value} for the next bank number.`; return; }
   if (badDate.value.length) { error.value = 'A ticked line has no date.'; return; }
-  if (clashes.value.size) { error.value = `Reference ${[...clashes.value][0]} is on more than one line.`; return; }
+  if (clashes.value.size) { error.value = `Reference ${[...refs.value.values()].find(r => clashes.value.has(r.toLowerCase()))} is on more than one entry.`; return; }
   confirming.value = true;
 }
 async function importNow() {
@@ -180,11 +219,17 @@ async function importNow() {
   try {
     const d = data.value;
     const r = await api('POST', '/api/bank/import', {
-      add: chosen.value.map(l => ({ n: l.n, fp: l.fp, reference: refs.value.get(l.fp) || '', date: l.date, bank_date: l.bank_date, amount_cents: l.amount_cents, description: l.description, payee_name: l.payee_name.trim(), payee_code: l.payee_code, account_code: l.account_code.trim(), allow_duplicate: l.decision === 'separate' })),
+      add: entries.value.map(e => ({
+        n: e.line.n, fp: e.id, reference: refs.value.get(e.id) || '', date: e.line.date, bank_date: e.line.bank_date,
+        amount_cents: Math.sign(e.line.amount_cents) * partCents(e.line, e.part), line_cents: e.line.amount_cents, description: e.line.description,
+        payee_name: e.part.payee_name.trim(), payee_code: e.part.payee_code, account_code: e.part.account_code.trim(),
+        // The line itself was checked against the books as a whole; its parts are not each checked again.
+        allow_duplicate: e.line.decision === 'separate' || e.line.parts.length > 1
+      })),
       matched: d.lines.filter(l => l.status === 'matched').map(l => ({ fp: l.fp, transaction_id: l.transaction.id })).concat(same.value.map(l => ({ fp: l.fp, transaction_id: l.possible.id }))),
       checkpoint: d.closing ? { date: d.closing.date, balance_cents: d.closing.balance_cents } : null
     });
-    toast(`Added ${r.added} ${r.added === 1 ? 'entry' : 'entries'}; ${r.ticked} already in the books ticked off`);
+    toast(`Added ${plural(r.added, 'entry', 'entries')}; ${r.ticked} already in the books ticked off`);
     await loadMeta();
     await run();
   } catch (e) { error.value = e.message; confirming.value = false; }
@@ -217,11 +262,11 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
   </div>
 
   <template v-else-if="data">
-    <p v-if="data.counts.fresh || data.counts.matched" class="banner info"><b>Preview.</b> Nothing has been added to the books yet. Give each new line its quick code or ledger code (none are filled in for you), change the reference, date or payee where needed, untick any you do not want, then press Add.</p>
+    <p v-if="data.counts.fresh || data.counts.matched" class="banner info"><b>Preview.</b> Nothing has been added to the books yet. Give each new line its quick code or ledger code (none are filled in for you) and each receipt its invoice number as the reference; split a line that covers more than one thing; untick any you do not want; then press Add.</p>
     <div class="tiles">
       <div class="card tile"><small>{{ fileName }}</small><b>{{ data.counts.total }} lines</b><small>{{ niceDate(data.from) }} to {{ niceDate(data.to) }}</small></div>
       <div class="card tile"><small>Already in the books</small><b>{{ data.counts.done + data.counts.matched }}</b><small>{{ data.counts.matched ? data.counts.matched + ' to tick off' : 'all ticked off' }}</small></div>
-      <div class="card tile" :class="{ hot: data.counts.fresh }"><small>New, to add</small><b>{{ data.counts.fresh }}</b><small>{{ chosen.length }} ticked</small></div>
+      <div class="card tile" :class="{ hot: data.counts.fresh }"><small>New, to add</small><b>{{ data.counts.fresh }}</b><small>{{ chosen.length }} ticked{{ entries.length > chosen.length ? ', ' + entries.length + ' entries' : '' }}</small></div>
       <div v-if="possibleLeft" class="card tile" :class="{ warn: undecided.length }"><small>Possibly already entered</small><b>{{ possibleLeft }}</b><small>{{ undecided.length ? undecided.length + ' to decide' : 'all decided' }}</small></div>
       <div class="card tile" :class="{ warn: data.counts.book_only }"><small>In the books, not on the statement</small><b>{{ data.counts.book_only }}</b><small>{{ data.counts.book_only ? 'listed below' : 'none' }}</small></div>
       <div v-if="closing" class="card tile" :class="closing.diff === 0 ? 'good' : 'warn'">
@@ -237,40 +282,65 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
         <span v-if="fresh.length" class="muted keys"><kbd>↑</kbd> <kbd>↓</kbd> move between lines · <kbd>Ctrl</kbd>+<kbd>'</kbd> copies the value above · <kbd>F4</kbd> opens a list</span>
         <span class="grow"></span>
         <span v-if="undecided.length" class="pill warn">{{ undecided.length }} to decide</span>
+        <span v-if="needRef.length" class="pill warn">{{ needRef.length }} need a reference</span>
         <span v-if="uncoded.length" class="pill warn">{{ uncoded.length }} need a ledger code</span>
-        <button class="primary" :disabled="busy || (!chosen.length && !toTick)" @click="review">
-          {{ chosen.length ? `Add ${chosen.length} ${chosen.length === 1 ? 'entry' : 'entries'}…` : 'Tick off matched entries…' }}</button>
+        <button class="primary" :disabled="busy || (!entries.length && !toTick)" @click="review">
+          {{ entries.length ? `Add ${plural(entries.length, 'entry', 'entries')}…` : 'Tick off matched entries…' }}</button>
       </div>
       <div v-if="visible.length" class="fit"><table class="review" @keydown.capture="reviewKey">
-        <thead><tr><th></th><th>Date</th><th>Reference</th><th>Bank description</th><th class="num">Payment</th><th class="num">Receipt</th><th v-if="hasBankBalance" class="num">Bank bal.</th><th class="num">Books bal.</th><th>Quick code</th><th>Payee in the books</th><th>Ledger code</th></tr></thead>
+        <thead><tr><th></th><th>Date</th><th>Reference</th><th>Bank description</th><th class="num">Payment</th><th class="num">Receipt</th><th v-if="hasBankBalance" class="num">Bank bal.</th><th class="num">Books bal.</th><th>Quick code</th><th>Payee in the books</th><th>Ledger code</th><th></th></tr></thead>
         <tbody>
           <template v-for="l in visible" :key="l.fp">
-            <tr :data-fp="l.fp" :class="{ dim: l.status !== 'new' || !l.include, joined: asking(l) }">
+            <tr :data-fp="l.fp" :class="{ dim: l.status !== 'new' || !l.include, joined: asking(l) || (l.include && l.parts?.length > 1) }">
               <td class="tick"><input v-if="l.status === 'new' && !asking(l)" type="checkbox" v-model="l.include" :aria-label="'Add ' + l.description" /></td>
               <td class="nowrap" data-col="date"><input v-if="l.status === 'new' && l.include" type="date" v-model="l.date" aria-label="Date" /><template v-else>{{ niceDate(l.date) }}</template></td>
               <td class="nowrap" data-col="reference">
-                <input v-if="l.status === 'new' && l.include" class="ref" :class="{ need: clashes.has(refs.get(l.fp)) }" :value="refs.get(l.fp) || ''" placeholder="automatic" aria-label="Reference" @change="setReference(l, $event.target.value)" />
+                <input v-if="l.status === 'new' && l.include" class="ref" :class="{ need: clash(l.fp) || (l.parts[0].refMode === 'manual' && !l.parts[0].ref) }" :value="refs.get(l.fp) || ''" :placeholder="l.amount_cents > 0 ? 'invoice no.' : 'automatic'" aria-label="Reference" @change="setReference(l, l.parts[0], $event.target.value)" />
                 <template v-else-if="l.transaction">{{ l.transaction.reference }}</template>
               </td>
               <td class="desc" :title="l.description + ' ' + l.detail">{{ l.description }} <small>{{ l.detail }}</small></td>
-              <td class="num">{{ l.amount_cents < 0 ? money(-l.amount_cents) : '' }}</td>
-              <td class="num">{{ l.amount_cents > 0 ? money(l.amount_cents) : '' }}</td>
+              <template v-if="l.status === 'new' && l.include && l.parts.length > 1">
+                <td class="num" :class="{ off: partCents(l, l.parts[0]) === null }">{{ l.amount_cents < 0 ? (partCents(l, l.parts[0]) === null ? '?' : money(partCents(l, l.parts[0]))) : '' }}</td>
+                <td class="num" :class="{ off: partCents(l, l.parts[0]) === null }">{{ l.amount_cents > 0 ? (partCents(l, l.parts[0]) === null ? '?' : money(partCents(l, l.parts[0]))) : '' }}</td>
+              </template>
+              <template v-else>
+                <td class="num">{{ l.amount_cents < 0 ? money(-l.amount_cents) : '' }}</td>
+                <td class="num">{{ l.amount_cents > 0 ? money(l.amount_cents) : '' }}</td>
+              </template>
               <td v-if="hasBankBalance" class="num muted">{{ l.balance_cents === null ? '' : money(l.balance_cents) }}</td>
               <td class="num bal" :class="{ off: running.get(l.fp)?.differs }" :title="running.get(l.fp)?.differs ? 'Differs from the bank balance on this line' : ''">{{ money(running.get(l.fp)?.books) }}</td>
               <template v-if="l.status === 'new'">
-                <td class="nowrap" data-col="payee_code"><QuickCodePicker :model-value="l.payee_code || ''" :open-on-focus="false" :disabled="!l.include" @update:model-value="l.payee_code = $event || null" @pick="quickPicked(l, $event)" /></td>
-                <td class="payee" data-col="payee_name"><input v-model="l.payee_name" :disabled="!l.include" aria-label="Payee" /></td>
-                <td class="nowrap" data-col="account_code"><AccountPicker v-model="l.account_code" :open-on-focus="false" :disabled="!l.include" :need="l.include && !known(l.account_code)" width="62px" /></td>
+                <td class="nowrap" data-col="payee_code"><QuickCodePicker :model-value="l.parts[0].payee_code || ''" :open-on-focus="false" :disabled="!l.include" @update:model-value="l.parts[0].payee_code = $event || null" @pick="quickPicked(l.parts[0], $event)" /></td>
+                <td class="payee" data-col="payee_name"><input v-model="l.parts[0].payee_name" :disabled="!l.include" aria-label="Payee" /></td>
+                <td class="nowrap" data-col="account_code"><AccountPicker v-model="l.parts[0].account_code" :open-on-focus="false" :disabled="!l.include" :need="l.include && !known(l.parts[0].account_code)" width="62px" /></td>
+                <td class="act"><button v-if="l.include" class="small" title="Split this line into separate amounts" @click="split(l)">Split</button></td>
               </template>
               <template v-else>
                 <td>{{ l.transaction.payee_code }}</td>
                 <td class="payee">{{ l.transaction.payee_name }}<small><span class="pill ok">In the books</span>{{ l.transaction.date !== l.date ? ' dated ' + niceDate(l.transaction.date) : '' }}</small></td>
                 <td class="nowrap">{{ l.transaction.account_code }} <small>{{ accountName(l.transaction.account_code) }}</small></td>
+                <td></td>
               </template>
             </tr>
+            <template v-if="l.status === 'new' && l.include">
+              <tr v-for="(p, i) in l.parts.slice(1)" :key="p.key" :data-fp="idOf(l, p)" class="part" :class="{ joined: i < l.parts.length - 2 }">
+                <td></td>
+                <td class="muted">↳ part {{ i + 2 }}</td>
+                <td class="nowrap" data-col="reference"><input class="ref" :class="{ need: clash(idOf(l, p)) || (p.refMode === 'manual' && !p.ref) }" :value="refs.get(idOf(l, p)) || ''" :placeholder="l.amount_cents > 0 ? 'invoice no.' : 'automatic'" aria-label="Reference" @change="setReference(l, p, $event.target.value)" /></td>
+                <td class="muted desc">of {{ money(Math.abs(l.amount_cents)) }}</td>
+                <td class="num" :data-col="l.amount_cents < 0 ? 'amount' : null"><input v-if="l.amount_cents < 0" v-model="p.amount" class="num amt" :class="{ need: partCents(l, p) === null }" inputmode="decimal" placeholder="0.00" aria-label="Amount of this part" /></td>
+                <td class="num" :data-col="l.amount_cents > 0 ? 'amount' : null"><input v-if="l.amount_cents > 0" v-model="p.amount" class="num amt" :class="{ need: partCents(l, p) === null }" inputmode="decimal" placeholder="0.00" aria-label="Amount of this part" /></td>
+                <td v-if="hasBankBalance"></td>
+                <td></td>
+                <td class="nowrap" data-col="payee_code"><QuickCodePicker :model-value="p.payee_code || ''" :open-on-focus="false" @update:model-value="p.payee_code = $event || null" @pick="quickPicked(p, $event)" /></td>
+                <td class="payee" data-col="payee_name"><input v-model="p.payee_name" aria-label="Payee" /></td>
+                <td class="nowrap" data-col="account_code"><AccountPicker v-model="p.account_code" :open-on-focus="false" :need="!known(p.account_code)" width="62px" /></td>
+                <td class="act"><button class="small" title="Remove this part" :aria-label="'Remove part ' + (i + 2)" @click="unsplit(l, p)">Remove</button></td>
+              </tr>
+            </template>
             <tr v-if="asking(l)" class="ask">
               <td></td>
-              <td :colspan="hasBankBalance ? 10 : 9">
+              <td :colspan="hasBankBalance ? 11 : 10">
                 <span class="pill warn">Possibly already entered</span>
                 The books have <b>{{ l.possible.reference }}</b> {{ l.possible.payee_name }} for the same amount, dated {{ niceDate(l.possible.date) }}.
                 <span class="seg" style="margin-left: 8px"><button :class="{ on: l.decision === 'same' }" @click="decide(l, 'same')">Same entry — don’t add</button><button :class="{ on: l.decision === 'separate' }" @click="decide(l, 'separate')">Separate — add it</button></span>
@@ -297,9 +367,10 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
         <h2>Add these to the books?</h2>
         <table>
           <tbody>
-            <tr><td>New entries to add</td><td class="num"><b>{{ chosen.length }}</b></td></tr>
-            <tr><td class="in">payments</td><td class="num">{{ money(sum(chosen, -1)) }}</td></tr>
-            <tr><td class="in">receipts</td><td class="num">{{ money(sum(chosen, 1)) }}</td></tr>
+            <tr><td>New entries to add</td><td class="num"><b>{{ entries.length }}</b></td></tr>
+            <tr v-if="entries.length > chosen.length"><td class="in">from statement lines</td><td class="num">{{ chosen.length }}</td></tr>
+            <tr><td class="in">payments</td><td class="num">{{ money(total(-1)) }}</td></tr>
+            <tr><td class="in">receipts</td><td class="num">{{ money(total(1)) }}</td></tr>
             <tr><td>Entries already in the books to tick off</td><td class="num">{{ toTick }}</td></tr>
             <tr v-if="leftOut.length"><td>Lines unticked (not added)</td><td class="num">{{ leftOut.length }}</td></tr>
             <tr v-if="undecided.length"><td>Possible duplicates not decided (not added)</td><td class="num">{{ undecided.length }}</td></tr>
@@ -309,7 +380,7 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
         </table>
         <div class="row" style="justify-content: flex-end; margin-top: 14px">
           <button @click="confirming = false">Back to the preview</button>
-          <button class="primary" :disabled="busy" @click="importNow">{{ chosen.length ? `Add ${chosen.length} ${chosen.length === 1 ? 'entry' : 'entries'}` : 'Tick off' }}</button>
+          <button class="primary" :disabled="busy" @click="importNow">{{ entries.length ? `Add ${plural(entries.length, 'entry', 'entries')}` : 'Tick off' }}</button>
         </div>
       </div>
     </div>
@@ -333,7 +404,6 @@ tr.dim td { color: var(--muted); }
 tr.joined td { border-bottom: 0; }
 tr.ask td { background: var(--amber-soft); padding-top: 8px; padding-bottom: 8px; }
 .nowrap { white-space: nowrap; }
-td input { padding: 4px 7px; }
 td.off { color: var(--amber); font-weight: 650; }
 /* The review table is kept narrow enough to show every column, balances included, without scrolling
    sideways on a laptop screen; if the window is narrower still, it scrolls rather than hiding columns. */
@@ -343,29 +413,30 @@ td.off { color: var(--amber); font-weight: 650; }
 .keys kbd { font: inherit; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; background: var(--soft); }
 .review th, .review td { padding: 4px 6px; }
 /* Every cell's first line is one 26px band - the height of the boxes - so dates, amounts, balances, boxes and
-   tick boxes sit on the same line across the row. Notes under the payee box hang below that band. */
+   tick boxes sit on the same line across the row. */
 .review td { vertical-align: top; line-height: 26px; }
 .review td small { line-height: inherit; }
-.review input:not([type="checkbox"]) { height: 26px; padding: 0 6px; line-height: normal; vertical-align: top; }
+.review input:not([type="checkbox"]) { height: 26px; padding: 0 6px; line-height: normal; vertical-align: top; font-size: 12.5px; }
 .review input[type="checkbox"] { width: 15px; height: 15px; margin: 0; vertical-align: middle; position: relative; top: -2px; }
-.review :deep(.picker) { height: 26px; vertical-align: top; }
+.review :deep(.picker) { height: 26px; vertical-align: top; gap: 5px; }
 .review :deep(.picker input) { height: 26px; padding: 0 6px; font-size: 12.5px; }
-.review :deep(.picker-name) { line-height: 26px; }
+.review :deep(.picker-name) { line-height: 26px; max-width: 92px; }
 .review .pill { line-height: 1.5; }
 .review td.payee .pill { line-height: 14px; font-size: 11px; padding: 0 6px; }
 .review td.tick { width: 22px; padding-right: 0; }
 .review input.ref { width: 84px; }
+.review input.amt { width: 78px; }
 .review input.need { border-color: var(--amber); box-shadow: 0 0 0 2px var(--amber-soft); }
-.review td.desc { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.review td.payee { min-width: 120px; max-width: 165px; }
-.review :deep(.picker-name) { max-width: 100px; }
-.review :deep(.picker) { gap: 5px; }
+.review td.desc { max-width: 132px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.review td.payee { min-width: 112px; max-width: 150px; }
 .review td.payee input { width: 100%; display: block; }
 .review td.payee small { display: block; line-height: 15px; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .review td.bal { font-weight: 600; }
-.review input { font-size: 12.5px; }
 .review input[type="date"] { width: 106px; }
 .review .seg button { padding: 3px 9px; }
+.review td.act { padding-left: 0; }
+.review td.act button { padding: 0 7px; height: 24px; font-size: 12px; vertical-align: top; margin-top: 1px; }
+.review tr.part td { background: var(--soft); }
 .veil { position: fixed; inset: 0; background: rgba(10, 20, 25, .55); display: grid; place-items: center; z-index: 30; padding: 16px; }
 .dialog { width: min(520px, 100%); margin: 0; box-shadow: 0 20px 60px rgba(0, 0, 0, .35); }
 .dialog td.in { padding-left: 28px; color: var(--muted); }
