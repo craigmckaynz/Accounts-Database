@@ -164,8 +164,8 @@ export function restoreTransaction(db, changeId) {
     const t = JSON.parse(ch.before_json);
     if (getTransaction(db, t.id)) throw new UserError('That entry has already been restored.');
     if (db.prepare('SELECT 1 FROM transactions WHERE reference = ?').get(t.reference)) throw new UserError(`Reference ${t.reference} has been used again since; it cannot be restored.`);
-    db.prepare(`INSERT INTO transactions (id, reference, date, type, amount_cents, gst_cents, gst_manual, payee_code, payee_name, account_code, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(t.id, t.reference, t.date, t.type, t.amount_cents, t.gst_cents, t.gst_manual, t.payee_code, t.payee_name, t.account_code, t.created_at, new Date().toISOString());
+    db.prepare(`INSERT INTO transactions (id, reference, date, type, amount_cents, gst_cents, gst_manual, payee_code, payee_name, account_code, created_at, updated_at, bank_ref)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(t.id, t.reference, t.date, t.type, t.amount_cents, t.gst_cents, t.gst_manual, t.payee_code, t.payee_name, t.account_code, t.created_at, new Date().toISOString(), t.bank_ref ?? null);
     log(db, 'restore', t.id, null, t);
     return getTransaction(db, t.id);
   });

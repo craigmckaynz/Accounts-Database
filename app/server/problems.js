@@ -115,7 +115,8 @@ export function findProblems(db, { since } = {}) {
     const rows = all.filter(t => t.date && t.date <= c.date && (!from || t.date > from));
     firstBreak = {
       from, to: c.date, diff_cents: diff, count: rows.length,
-      suspects: suspectsFor(rows, diff),
+      // Entries already ticked off against a bank statement line are known to be right.
+      suspects: suspectsFor(rows.filter(t => !t.bank_ref), diff),
       gaps: referenceGaps(rows, prefix),
       changed: recentChanges(db, from, c.date)
     };

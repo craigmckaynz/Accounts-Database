@@ -110,4 +110,18 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   for (const ext of ['', '-wal', '-shm']) fs.rmSync(file + ext, { force: true });
   const db = openDb(file);
   console.log(`${seedDemo(db)} demo transactions written to ${file}`);
+  // A matching bank statement to try the import with: this month's entries as the bank would show them,
+  // plus two lines the books do not have yet.
+  const month = todayIso().slice(0, 7);
+  const rows = db.prepare("SELECT * FROM transactions WHERE date LIKE ? ORDER BY date, id").all(month + '%');
+  let balance = bankBalance(db, addDays(month + '-01', -1));
+  const nz = d => d.slice(8, 10) + '/' + d.slice(5, 7) + '/' + d.slice(0, 4);
+  // The entry planted twice in the books went through the bank once.
+  const once = new Set();
+  const lines = rows.filter(t => { const k = `${t.date}|${t.type}|${t.amount_cents}|${t.payee_name}`; if (once.has(k)) return false; once.add(k); return true; }).map(t => ({ date: t.date, amount: t.type === 'R' ? t.amount_cents : -t.amount_cents, payee: t.payee_name, particulars: t.type === 'R' ? 'DIRECT CREDIT' : 'EFTPOS 4421' }));
+  lines.push({ date: todayIso(), amount: -8990, payee: 'KIWILINK BROADBAND', particulars: 'DIRECT DEBIT' }, { date: todayIso(), amount: -1500, payee: 'CITY PARKING', particulars: 'CARD 4421' });
+  const csv = ['Date,Amount,Payee,Particulars,Balance'].concat(lines.map(l => { balance += l.amount; return [nz(l.date), (l.amount / 100).toFixed(2), l.payee, l.particulars, (balance / 100).toFixed(2)].join(','); })).join('\r\n') + '\r\n';
+  const csvFile = path.join(path.dirname(file), 'demo-statement.csv');
+  fs.writeFileSync(csvFile, csv);
+  console.log(`Demo bank statement written to ${csvFile}`);
 }

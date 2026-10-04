@@ -102,6 +102,8 @@ describes what is built and what is not.
 - Real data: `C:claudeaccounts-dataaccounts.sqlite`, outside the repository. Demo data:
   `demo.sqlite` in the same folder (`npm run demo`). **Use the demo data for screenshots, browser checks and
   tests**; check the real data with counts and true/false comparisons only.
+- The bank import (`server/bank.js`) must stay safe to repeat: a statement line carries a fingerprint
+  (`transactions.bank_ref`) and is never added twice. `npm run demo` also writes `demo-statement.csv`.
 - Money is integer cents everywhere; `shared/money.js` is the only place GST arithmetic lives.
 - After changing anything under `app/`: `npm test`, then `npm run build` (the server serves `dist/`), then
   check the screen on the demo data.

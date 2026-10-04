@@ -3,17 +3,19 @@ import { onMounted, computed } from 'vue';
 import { store, loadMeta, go, dollars } from './store.js';
 import { niceDate } from '../../shared/money.js';
 import TransactionsView from './views/TransactionsView.vue';
+import BankView from './views/BankView.vue';
 import ReportsView from './views/ReportsView.vue';
 import ProblemsView from './views/ProblemsView.vue';
 import SetupView from './views/SetupView.vue';
 
 const views = [
   { key: 'transactions', label: 'Transactions', icon: 'M4 6h16M4 12h16M4 18h10' },
+  { key: 'bank', label: 'Bank import', icon: 'M12 3v12M7 10l5 5 5-5M4 20h16' },
   { key: 'reports', label: 'Reports', icon: 'M6 3h9l4 4v14H6zM14 3v5h5M9 13h6M9 17h6' },
   { key: 'problems', label: 'Problem finder', icon: 'M11 4a7 7 0 1 0 4.2 12.6L20 21M11 8v3.5M11 14.5v.01' },
   { key: 'setup', label: 'Setup', icon: 'M4 7h10M18 7h2M4 17h2M10 17h10M16 4v6M8 14v6' }
 ];
-const current = computed(() => ({ transactions: TransactionsView, reports: ReportsView, problems: ProblemsView, setup: SetupView })[store.view]);
+const current = computed(() => ({ transactions: TransactionsView, bank: BankView, reports: ReportsView, problems: ProblemsView, setup: SetupView })[store.view]);
 const error = computed(() => store.loadError);
 
 onMounted(async () => {

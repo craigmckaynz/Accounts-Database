@@ -40,6 +40,7 @@ Tests (made-up data, in memory): `npm test`.
 | Screen | What it does |
 |---|---|
 | Transactions | One entry line: date, payee or quick code, payment/receipt, amount, ledger code. A quick code fills the payee and ledger code; GST shows as you type; the reference is offered for the month of the date; Enter saves and leaves the cursor ready for the next statement line with the date kept. The month's entries sit below with the bank balance after each one, so the screen can be read down beside the statement. Click an entry to change or delete it (delete has Undo). Search covers every year. |
+| Bank import | Choose the CSV exported from internet banking. Each statement line is lined up against the books: lines already entered are ticked off, new lines are offered as entries with the payee and ledger code filled in where the app has seen that payee before (it remembers what you choose), and entries in the books that the statement does not have are listed - the usual home of a double entry or a wrong amount. Adding is all-or-nothing, the same file can be loaded again without doubling up, and the statement's closing balance is recorded for the problem finder. Column layout and date format are worked out from the file; if they cannot be, the screen asks which column is which. |
 | Reports | By ledger code (with or without every transaction), transaction listing with running balance, and GST summary, for a preset or custom period and any set of ledger codes. Print or save as PDF, or download for Excel. Every report shows the opening and closing bank balance. |
 | Problem finder | Enter a bank statement's closing balance. Where the books first disagree, it searches the entries since the last statement that agreed and lists the likeliest culprits: an entry made twice, a payment entered as a receipt, digits swapped, a slipped decimal point, an extra or missing digit - each with a one-click fix. It also lists skipped reference numbers and entries edited or deleted in that stretch, and sweeps for missing data, unknown ledger codes, future dates, references in the wrong month, double entries and GST that does not match the rate for the date. |
 | Setup | Bank account name, opening balance, financial year start, lock date, ledger codes, quick codes, GST rates. |
@@ -66,6 +67,7 @@ Tests (made-up data, in memory): `npm test`.
 server/db.js             tables, settings, daily backup
 server/ledger.js         transactions, bank balance, references, validation, GST on entry
 server/problems.js       the problem finder
+server/bank.js           bank statement import: reading the CSV, matching, adding
 server/reports.js        ledger report, GST summary, period balances
 server/index.js          the web server and API
 server/import-access.js  import from the .accdb
@@ -77,7 +79,9 @@ client/                  the Vue application
 
 ## Not done yet
 
-- Importing the bank's CSV statement, so entries are matched or created rather than typed.
+- The bank import has been tested on made-up statements in the common layouts (one amount column, separate
+  money in / money out columns, newest or oldest first, with or without a header row). It has not yet been
+  run on a real export from your bank.
 - A login, if it is ever to be used from more than this computer.
 - PostgreSQL in Docker, to match the Site Inspection application.
 - The reports have been checked for arithmetic (they add up to the bank balance) but not yet laid beside

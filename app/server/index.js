@@ -9,13 +9,14 @@ import * as ledger from './ledger.js';
 import { UserError } from './ledger.js';
 import { findProblems } from './problems.js';
 import { ledgerReport, gstSummary, periodBalances } from './reports.js';
+import * as bank from './bank.js';
 import { isIsoDate, todayIso } from '../shared/money.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 export function createApp(db) {
   const app = express();
-  app.use(express.json({ limit: '1mb' }));
+  app.use(express.json({ limit: '20mb' }));
   const need = (cond, msg, field) => { if (!cond) throw new UserError(msg, field); };
   const dates = q => { need(isIsoDate(q.from) && isIsoDate(q.to) && q.from <= q.to, 'Choose a valid date range.'); return { from: q.from, to: q.to }; };
 
@@ -56,6 +57,13 @@ export function createApp(db) {
     res.json({ ok: true });
   });
   app.delete('/api/checkpoints/:id', (req, res) => { db.prepare('DELETE FROM checkpoints WHERE id = ?').run(Number(req.params.id)); res.json({ ok: true }); });
+
+  // ---- bank statement import
+  app.post('/api/bank/preview', (req, res) => {
+    need(typeof req.body.text === 'string' && req.body.text.trim(), 'Choose the CSV file exported from internet banking.');
+    res.json(bank.preview(db, req.body.text, req.body.mapping || null));
+  });
+  app.post('/api/bank/import', (req, res) => res.json(bank.commit(db, req.body)));
 
   // ---- reports
   app.get('/api/reports/ledger', (req, res) => {

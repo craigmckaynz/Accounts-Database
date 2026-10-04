@@ -58,6 +58,12 @@ CREATE TABLE IF NOT EXISTS checkpoints (       -- balances read off bank stateme
   balance_cents INTEGER NOT NULL,
   note          TEXT NOT NULL DEFAULT ''
 );
+CREATE TABLE IF NOT EXISTS bank_matches (     -- which payee and ledger code a bank description was given last time
+  key          TEXT PRIMARY KEY,
+  payee_name   TEXT,
+  payee_code   TEXT,
+  account_code TEXT
+);
 CREATE TABLE IF NOT EXISTS changes (           -- every add, edit and delete, for undo and for finding slips
   id             INTEGER PRIMARY KEY,
   at             TEXT NOT NULL,
@@ -81,6 +87,9 @@ export function openDb(file = defaultDbPath()) {
   const db = new DatabaseSync(file);
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
   db.exec(SCHEMA);
+  // Added after 0.1.0: the bank statement line an entry was matched to or created from.
+  if (!db.prepare('PRAGMA table_info(transactions)').all().some(c => c.name === 'bank_ref')) db.exec('ALTER TABLE transactions ADD COLUMN bank_ref TEXT');
+  db.exec('CREATE INDEX IF NOT EXISTS transactions_bank_ref ON transactions (bank_ref)');
   const ins = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
   for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) ins.run(k, v);
   return db;
@@ -92,9 +101,14 @@ export function getSettings(db) {
   return out;
 }
 
+// Runs fn as one unit: all of it is saved or none of it. Calls may nest; the outermost one commits.
+const depth = new WeakMap();
 export function inTransaction(db, fn) {
+  const d = depth.get(db) || 0;
+  if (d > 0) return fn();
   db.exec('BEGIN IMMEDIATE');
-  try { const r = fn(); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; }
+  depth.set(db, 1);
+  try { const r = fn(); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; } finally { depth.set(db, 0); }
 }
 
 // One dated copy a day, newest 30 kept, written before the day's first change can happen.

@@ -3,6 +3,18 @@
 One entry per version installed into the master database, newest first. Each entry says what changed for
 the person using it, which objects changed, and which BUGS_AND_IMPROVEMENTS items it closes.
 
+## Application 0.2.0 - 2026-10-04 (prototype)
+
+- Bank statement import: reads the bank's CSV, ticks off lines already in the books, offers the rest as
+  entries with payee and ledger code suggested (remembered from last time, from past entries, or from a
+  quick code), lists entries in the books that the statement lacks, and records the closing balance.
+- Loading the same statement twice adds nothing twice. Entries ticked off against the bank are no longer
+  offered as suspects by the problem finder.
+- Tested: 25 automated tests pass (10 for the import: date and amount formats, layouts, matching, repeat
+  import, an uncoded line stopping the whole import). In the browser on a made-up statement: 3 lines matched,
+  2 added, the double entry listed, a repeat import showing everything ticked off.
+- Not tested: a real export from the bank.
+
 ## Application 0.1.0 - 2026-10-04 (prototype; Access remains the system in use)
 
 The first working version of the JavaScript application in `app/`.
