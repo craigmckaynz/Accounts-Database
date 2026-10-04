@@ -5,7 +5,7 @@ import { computed } from 'vue';
 import { store } from './store.js';
 import ListPicker from './ListPicker.vue';
 
-defineProps({ modelValue: { type: String, default: '' }, disabled: Boolean, width: { type: String, default: '62px' } });
+defineProps({ modelValue: { type: String, default: '' }, disabled: Boolean, openOnFocus: { type: Boolean, default: true }, width: { type: String, default: '62px' } });
 const emit = defineEmits(['update:modelValue', 'pick']);
 
 const columns = [{ key: 'code', title: 'Code', width: '64px' }, { key: 'name', title: 'Payee', width: '1fr' }, { key: 'account_code', title: 'Ledger code', width: '84px' }];
@@ -14,6 +14,6 @@ const rows = computed(() => store.payees.map(p => ({ code: p.code, name: p.name,
 </script>
 
 <template>
-  <ListPicker :model-value="modelValue" :rows="rows" :columns="columns" label="Quick code" strict :disabled="disabled" :width="width" :list-width="440"
+  <ListPicker :model-value="modelValue" :rows="rows" :columns="columns" label="Quick code" strict :disabled="disabled" :open-on-focus="openOnFocus" :width="width" :list-width="440"
     @update:model-value="emit('update:modelValue', $event)" @pick="emit('pick', $event)" />
 </template>

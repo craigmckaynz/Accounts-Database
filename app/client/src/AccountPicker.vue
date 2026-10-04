@@ -5,7 +5,7 @@ import { computed } from 'vue';
 import { store } from './store.js';
 import ListPicker from './ListPicker.vue';
 
-const props = defineProps({ modelValue: { type: String, default: '' }, disabled: Boolean, need: Boolean, showName: { type: Boolean, default: true }, width: { type: String, default: '74px' } });
+const props = defineProps({ modelValue: { type: String, default: '' }, disabled: Boolean, openOnFocus: { type: Boolean, default: true }, need: Boolean, showName: { type: Boolean, default: true }, width: { type: String, default: '74px' } });
 const emit = defineEmits(['update:modelValue', 'change']);
 
 const label = a => (a.sub_description ? `${a.description} / ${a.sub_description}` : a.description);
@@ -17,6 +17,6 @@ const name = computed(() => (props.showName ? rows.value.find(r => r.code === pr
 </script>
 
 <template>
-  <ListPicker :model-value="modelValue" :rows="rows" :columns="columns" :name="name" label="Ledger code" :disabled="disabled" :need="need" :width="width"
+  <ListPicker :model-value="modelValue" :rows="rows" :columns="columns" :name="name" label="Ledger code" :disabled="disabled" :open-on-focus="openOnFocus" :need="need" :width="width"
     @update:model-value="emit('update:modelValue', $event)" @change="emit('change', $event)" />
 </template>

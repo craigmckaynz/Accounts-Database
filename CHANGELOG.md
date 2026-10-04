@@ -14,6 +14,9 @@ the person using it, which objects changed, and which BUGS_AND_IMPROVEMENTS item
   line, table sized to fit a 1280-wide window.
 - Ledger code and quick code lists have titled, aligned columns (Description / Code / GST; Code / Payee /
   Ledger code); the ledger list is in description order.
+- Transactions screen has the same quick code combo. In the import preview the Up and Down keys move between
+  lines in the same column, Ctrl+' copies the value from the line above (a copied quick code also fills
+  the payee and ledger code), and lists open by typing, clicking, F4 or Alt+Down rather than on arrival.
 - Tested: 29 automated tests pass. In the browser on a made-up statement: every new line arrives with empty
   codes, coding one line leaves an identical one empty, a quick code fills payee and ledger code, and Add is
   refused while any ticked line has no ledger code.

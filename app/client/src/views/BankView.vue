@@ -115,6 +115,46 @@ function setReference(l, value) {
   l.reference = v === refs.value.get(l.fp) ? l.reference : v;
 }
 const clashes = computed(() => { const seen = new Set(), dup = new Set(); for (const r of refs.value.values()) { if (seen.has(r)) dup.add(r); seen.add(r); } return dup; });
+// ---- keyboard in the review table
+// Up and Down move to the same box on the line above or below (unless a list is open, where they move within
+// the list). Ctrl+' copies the value from the same column of the nearest line above, as in Access.
+const COLUMNS = ['date', 'reference', 'payee_code', 'payee_name', 'account_code'];
+function reviewKey(e) {
+  const box = e.target;
+  if (!(box instanceof HTMLInputElement) || box.type === 'checkbox') return;
+  const cell = box.closest('td[data-col]');
+  const row = box.closest('tr[data-fp]');
+  if (!cell || !row) return;
+  const col = cell.dataset.col;
+  const boxIn = tr => tr.querySelector(`td[data-col="${col}"] input:not([disabled])`);
+
+  if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !e.altKey && !e.ctrlKey && !e.metaKey) {
+    if (box.getAttribute('aria-expanded') === 'true') return;            // an open list keeps the arrows
+    e.preventDefault();
+    e.stopPropagation();
+    const step = e.key === 'ArrowDown' ? 'nextElementSibling' : 'previousElementSibling';
+    for (let tr = row[step]; tr; tr = tr[step]) {
+      const next = tr.dataset.fp ? boxIn(tr) : null;
+      if (next) { next.focus(); if (next.type !== 'date') next.select(); break; }
+    }
+    return;
+  }
+  if ((e.key === "'" || e.code === 'Quote') && (e.ctrlKey || e.metaKey) && !e.altKey) {
+    e.preventDefault();
+    e.stopPropagation();
+    const lines = visible.value;
+    const at = lines.findIndex(l => l.fp === row.dataset.fp);
+    const line = lines[at];
+    let above = null;
+    for (let i = at - 1; i >= 0 && !above; i--) if (lines[i].status === 'new' && lines[i].include) above = lines[i];
+    if (!line || !above) return;
+    if (col === 'reference') setReference(line, refs.value.get(above.fp) || '');
+    else if (col === 'payee_code') {
+      const q = store.payees.find(p => p.code === above.payee_code);
+      if (q) quickPicked(line, { code: q.code, name: q.name, account_code: q.account_code || '' }); else line.payee_code = null;
+    } else line[col] = above[col];
+  }
+}
 function tickAll(on) { for (const l of fresh.value) if (!l.possible) l.include = on; }
 
 // What the books will read at the statement's closing date once the ticked lines are added.
@@ -191,20 +231,21 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
       <div class="bar">
         <div class="seg"><button :class="{ on: show === 'new' }" @click="show = 'new'">New lines ({{ data.counts.fresh }})</button><button :class="{ on: show === 'all' }" @click="show = 'all'">Whole statement</button></div>
         <button v-if="fresh.length" class="small" @click="tickAll(true)">Tick all</button><button v-if="fresh.length" class="small" @click="tickAll(false)">Untick all</button>
+        <span v-if="fresh.length" class="muted keys"><kbd>↑</kbd> <kbd>↓</kbd> move between lines · <kbd>Ctrl</kbd>+<kbd>'</kbd> copies the value above · <kbd>F4</kbd> opens a list</span>
         <span class="grow"></span>
         <span v-if="undecided.length" class="pill warn">{{ undecided.length }} to decide</span>
         <span v-if="uncoded.length" class="pill warn">{{ uncoded.length }} need a ledger code</span>
         <button class="primary" :disabled="busy || (!chosen.length && !toTick)" @click="review">
           {{ chosen.length ? `Add ${chosen.length} ${chosen.length === 1 ? 'entry' : 'entries'}…` : 'Tick off matched entries…' }}</button>
       </div>
-      <div v-if="visible.length" class="fit"><table class="review">
+      <div v-if="visible.length" class="fit"><table class="review" @keydown.capture="reviewKey">
         <thead><tr><th></th><th>Date</th><th>Reference</th><th>Bank description</th><th class="num">Payment</th><th class="num">Receipt</th><th v-if="hasBankBalance" class="num">Bank bal.</th><th class="num">Books bal.</th><th>Quick code</th><th>Payee in the books</th><th>Ledger code</th></tr></thead>
         <tbody>
           <template v-for="l in visible" :key="l.fp">
-            <tr :class="{ dim: l.status !== 'new' || !l.include, joined: l.possible }">
+            <tr :data-fp="l.fp" :class="{ dim: l.status !== 'new' || !l.include, joined: l.possible }">
               <td class="tick"><input v-if="l.status === 'new' && !l.possible" type="checkbox" v-model="l.include" :aria-label="'Add ' + l.description" /></td>
-              <td class="nowrap"><input v-if="l.status === 'new' && l.include" type="date" v-model="l.date" aria-label="Date" /><template v-else>{{ niceDate(l.date) }}</template></td>
-              <td class="nowrap">
+              <td class="nowrap" data-col="date"><input v-if="l.status === 'new' && l.include" type="date" v-model="l.date" aria-label="Date" /><template v-else>{{ niceDate(l.date) }}</template></td>
+              <td class="nowrap" data-col="reference">
                 <input v-if="l.status === 'new' && l.include" class="ref" :class="{ need: clashes.has(refs.get(l.fp)) }" :value="refs.get(l.fp) || ''" placeholder="automatic" aria-label="Reference" @change="setReference(l, $event.target.value)" />
                 <template v-else-if="l.transaction">{{ l.transaction.reference }}</template>
               </td>
@@ -214,9 +255,9 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
               <td v-if="hasBankBalance" class="num muted">{{ l.balance_cents === null ? '' : money(l.balance_cents) }}</td>
               <td class="num bal" :class="{ off: running.get(l.fp)?.differs }" :title="running.get(l.fp)?.differs ? 'Differs from the bank balance on this line' : ''">{{ money(running.get(l.fp)?.books) }}</td>
               <template v-if="l.status === 'new'">
-                <td class="nowrap"><QuickCodePicker :model-value="l.payee_code || ''" :disabled="!l.include" @update:model-value="l.payee_code = $event || null" @pick="quickPicked(l, $event)" /></td>
-                <td class="payee"><input v-model="l.payee_name" :disabled="!l.include" aria-label="Payee" /></td>
-                <td class="nowrap"><AccountPicker v-model="l.account_code" :disabled="!l.include" :need="l.include && !known(l.account_code)" width="62px" /></td>
+                <td class="nowrap" data-col="payee_code"><QuickCodePicker :model-value="l.payee_code || ''" :open-on-focus="false" :disabled="!l.include" @update:model-value="l.payee_code = $event || null" @pick="quickPicked(l, $event)" /></td>
+                <td class="payee" data-col="payee_name"><input v-model="l.payee_name" :disabled="!l.include" aria-label="Payee" /></td>
+                <td class="nowrap" data-col="account_code"><AccountPicker v-model="l.account_code" :open-on-focus="false" :disabled="!l.include" :need="l.include && !known(l.account_code)" width="62px" /></td>
               </template>
               <template v-else>
                 <td>{{ l.transaction.payee_code }}</td>
@@ -295,6 +336,8 @@ td.off { color: var(--amber); font-weight: 650; }
    sideways on a laptop screen; if the window is narrower still, it scrolls rather than hiding columns. */
 .fit { overflow-x: auto; }
 .review { font-size: 12.5px; }
+.keys { font-size: 12px; }
+.keys kbd { font: inherit; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; background: var(--soft); }
 .review th, .review td { padding: 4px 6px; }
 /* Every cell's first line is one 26px band - the height of the boxes - so dates, amounts, balances, boxes and
    tick boxes sit on the same line across the row. Notes under the payee box hang below that band. */

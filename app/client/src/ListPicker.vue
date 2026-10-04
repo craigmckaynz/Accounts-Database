@@ -11,6 +11,7 @@ const props = defineProps({
   name: { type: String, default: '' },             // text shown beside the box for the chosen row
   label: { type: String, default: '' },
   strict: Boolean,                                 // only a listed code (or nothing) may be left in the box
+  openOnFocus: { type: Boolean, default: true },   // false in grids, where the arrow keys move between rows
   disabled: Boolean, need: Boolean,
   width: { type: String, default: '74px' },
   listWidth: { type: Number, default: 400 }
@@ -73,6 +74,11 @@ async function show() {
   await nextTick();
   if (list.value) list.value.scrollTop = Math.max(0, (active.value - 4) * ROW);
 }
+// What was in the box on arrival, so a rejected entry can be put back and a change recognised on leaving.
+function focused() {
+  before = current.value ? current.value.code : '';
+  if (props.openOnFocus) show();
+}
 function hide(e) {
   if (e && e.type === 'scroll' && list.value && list.value.contains(e.target)) return;      // scrolling the list itself
   open.value = false;
@@ -120,7 +126,7 @@ function leave() {
 <template>
   <span class="picker">
     <input ref="box" :value="modelValue" :disabled="disabled" :class="{ need }" :style="{ width }" autocomplete="off" role="combobox" :aria-expanded="open" :aria-label="label"
-      @input="typed" @focus="show" @click="show" @blur="leave" @keydown.down.prevent="move(1)" @keydown.up.prevent="move(-1)" @keydown.enter="enter" @keydown.esc="hide()" />
+      @input="typed" @focus="focused" @click="show" @blur="leave" @keydown.f4.prevent="show" @keydown.down.prevent="move(1)" @keydown.up.prevent="move(-1)" @keydown.enter="enter" @keydown.esc="hide()" />
     <span v-if="name" class="picker-name" :title="name">{{ name }}</span>
     <Teleport to="body">
       <div v-if="open && options.length" ref="list" class="picker-list" :style="place" role="listbox">
