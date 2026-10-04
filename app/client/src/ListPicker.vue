@@ -100,10 +100,9 @@ function typed(e) {
   // Typed down to the only possibility ("2D" when 2DEG is the one code that fits): fill it in and close the
   // list, so the next key can move on. Only while adding characters, so it can still be deleted.
   if (props.autoFill && String(e.inputType || '').startsWith('insert') && e.target.value.trim()) {
-    // One code starting with it is enough, whatever other rows mention the same letters in a name.
-    const q = e.target.value.trim().toLowerCase();
-    const codes = props.rows.filter(r => r.code.toLowerCase().startsWith(q));
-    const only = codes.length ? codes : matching(e.target.value);
+    // Only when the list itself is down to one row: any other row still showing, by code or by name, is an
+    // alternative and the choice stays with the user.
+    const only = matching(e.target.value);
     if (only.length === 1) { pick(only[0]); return; }
   }
   emit('update:modelValue', e.target.value);
