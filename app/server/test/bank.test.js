@@ -210,3 +210,18 @@ test('a separate transaction of the same amount can be added once it is confirme
   const r = commit(db, { add: [{ ...p.lines[0], bank_date: p.lines[0].date, payee_name: 'HILLTOP FUEL', account_code: '270', allow_duplicate: true }] });
   assert.equal(r.added, 1);
 });
+
+test('a shared town or a look-alike word is not a match', () => {
+  const db = fresh();
+  ledger.createTransaction(db, { date: '2026-05-12', type: 'R', amount_cents: 230000, account_code: '230', payee_name: 'Hastings DC' });
+  for (let d = 1; d <= 3; d++) ledger.createTransaction(db, { date: '2026-05-0' + d, type: 'R', amount_cents: 50000, account_code: '230', payee_name: 'Power New Zealand' });
+  ledger.createTransaction(db, { date: '2026-05-20', type: 'P', amount_cents: 9900, account_code: '270', payee_name: 'Gull Waihi' });
+  const h = buildHistory(db);
+  const line = (description, amount) => ({ description, detail: 'EFTPOS TRANSACTION', amount_cents: amount });
+  assert.equal(bestMatch(h, line('New World Hastings', -12529)), null);          // the town, not the payee
+  assert.equal(bestMatch(h, line('Cursor, Ai Powere 01', -3420)), null);         // POWERE is not POWER NEW ZEALAND
+  assert.equal(bestMatch(h, line('Hastings DC', -5000)), null);                  // only ever a receipt; this is a payment
+  assert.equal(bestMatch(h, line('Hastings District Council', 99000)).payee.account_code, '230');
+  assert.equal(bestMatch(h, line('Gull Waihi', -14177)).payee.account_code, '270');
+  assert.equal(bestMatch(h, line('Gull Napier', -6000)).payee.account_code, '270');   // same merchant, another town
+});

@@ -174,11 +174,11 @@ const signedOf = t => (t.type === 'R' ? t.amount_cents : -t.amount_cents);
 // than common ones, and the ledger code and quick code most often used for that payee are offered.
 
 // Words that say how the money moved, not who it went to.
-const NOISE = new Set(('LTD LIMITED THE AND FOR NZ NEW ZEALAND CARD EFTPOS VISA DEBIT CREDIT DIRECT PAYMENT PAYMENTS PAY BILL TRANSFER ' +
+const NOISE = new Set(('LTD LIMITED THE AND FOR NZ CARD EFTPOS VISA DEBIT CREDIT DIRECT PAYMENT PAYMENTS PAY BILL TRANSFER ' +
   'AUTOMATIC ONLINE INTERNET BANKING DEPOSIT WITHDRAWAL PURCHASE POS REF FROM TXN TRANSACTION').split(' '));
 export const words = s => [...new Set(matchKey(s).split(' ').filter(w => w.length >= 3 && !NOISE.has(w)))];
 // Banks cut names short and people abbreviate: COUNTDOW matches COUNTDOWN.
-const sameWord = (a, b) => a === b || (Math.min(a.length, b.length) >= 4 && (a.startsWith(b) || b.startsWith(a)));
+const sameWord = (a, b) => a === b || (Math.min(a.length, b.length) >= 5 && (a.startsWith(b) || b.startsWith(a)));
 
 // Every payee the books know, from past transactions and the quick codes, with what it was coded to.
 export function buildHistory(db) {
@@ -240,19 +240,26 @@ export function bestMatch(history, line) {
   const candidates = new Set();
   for (const w of mine) {
     for (const p of history.byWord.get(w) || []) candidates.add(p);
-    if (w.length >= 4) for (const [hw, list] of history.byWord) if (hw !== w && sameWord(hw, w)) for (const p of list) candidates.add(p);
+    if (w.length >= 5) for (const [hw, list] of history.byWord) if (hw !== w && sameWord(hw, w)) for (const p of list) candidates.add(p);
   }
   let best = null;
   for (const p of candidates) {
     if (!p.account_code) continue;
+    if (p.count && !p.types[type]) continue;              // only ever money the other way: not the same payee
     const shared = p.words.filter(hw => mine.some(w => sameWord(hw, w)));
     if (!shared.length) continue;
+    // The leading word of a bank description is the merchant; the rest is often a town or branch. A past
+    // payee that shares only a later word ("New World Hastings" and "Hastings DC") is somebody else - unless
+    // its whole name of two or more words is in the description.
+    const leads = shared.some(hw => sameWord(hw, mine[0]));
+    if (!leads && !(shared.length >= 2 && shared.length === p.words.length)) continue;
     const got = shared.reduce((s, w) => s + history.weight(w), 0);
     const containment = got / p.weight;                    // how much of the known name is in the description
-    if (containment < 0.5) continue;
-    let score = 0.7 * containment + 0.3 * Math.min(1, got / mineWeight);
+    // Both names start with the same word: the same merchant at another branch ("Gull Napier", "Gull Waihi").
+    const sameMerchant = leads && sameWord(p.words[0], mine[0]);
+    if (containment < (sameMerchant ? 0.3 : 0.5)) continue;
+    let score = 0.7 * containment + 0.3 * Math.min(1, got / mineWeight) + (sameMerchant ? 0.2 : 0);
     if (p.amounts.has(`${type}${Math.abs(line.amount_cents)}`)) score += 0.15;      // same amount as before
-    if (p.count && !p.types[type]) score -= 0.15;          // only ever seen going the other way
     score += Math.min(p.count, 50) / 5000;                 // between equals, the more familiar payee
     if (!best || score > best.score) best = { payee: p, score, shared };
   }

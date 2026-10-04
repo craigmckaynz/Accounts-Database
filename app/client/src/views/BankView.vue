@@ -274,15 +274,25 @@ td.off { color: var(--amber); font-weight: 650; }
 .fit { overflow-x: auto; }
 .review { font-size: 12.5px; }
 .review th, .review td { padding: 4px 6px; }
+/* Every cell's first line is one 26px band - the height of the boxes - so dates, amounts, balances, boxes and
+   tick boxes sit on the same line across the row. Notes under the payee box hang below that band. */
+.review td { vertical-align: top; line-height: 26px; }
+.review td small { line-height: inherit; }
+.review input:not([type="checkbox"]) { height: 26px; padding: 0 6px; line-height: normal; vertical-align: top; }
+.review input[type="checkbox"] { width: 15px; height: 15px; margin: 0; vertical-align: middle; position: relative; top: -2px; }
+.review :deep(.picker) { height: 26px; vertical-align: top; }
+.review :deep(.picker-name) { line-height: 26px; }
+.review .pill { line-height: 1.5; }
+.review td.payee .pill { line-height: 14px; font-size: 11px; padding: 0 6px; }
 .review td.tick { width: 22px; padding-right: 0; }
 .review td.desc { max-width: 165px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .review td.payee { min-width: 125px; max-width: 175px; }
 .review :deep(.picker-name) { max-width: 112px; }
 .review :deep(.picker) { gap: 5px; }
 .review td.payee input { width: 100%; display: block; }
-.review td.payee small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.review td.payee small { display: block; line-height: 15px; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .review td.bal { font-weight: 600; }
-.review input { font-size: 12.5px; padding: 3px 5px; }
+.review input { font-size: 12.5px; }
 .review input[type="date"] { width: 106px; }
 .review .seg button { padding: 3px 9px; }
 .veil { position: fixed; inset: 0; background: rgba(10, 20, 25, .55); display: grid; place-items: center; z-index: 30; padding: 16px; }
