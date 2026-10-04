@@ -24,7 +24,11 @@ const confirming = ref(false);
 let partSeq = 0;
 // Money going out is numbered automatically (bk26/08-18 ...). Money coming in starts with an empty reference:
 // the invoice number goes there. Quick code and ledger code start empty on every part - nothing is guessed.
-const newPart = l => ({ key: ++partSeq, amount: '', refMode: l.amount_cents > 0 ? 'manual' : 'auto', ref: '', payee_code: null, payee_name: l.payee_name, account_code: '' });
+// The exception is a transfer in from another of the company's bank accounts: the bank describes those as
+// "From ...", there is no invoice, and they take a bank number like a payment.
+const isTransfer = l => /^from\b/i.test((l.description || l.detail || '').trim());
+const wantsInvoice = l => l.amount_cents > 0 && !isTransfer(l);
+const newPart = l => ({ key: ++partSeq, amount: '', refMode: wantsInvoice(l) ? 'manual' : 'auto', ref: '', payee_code: null, payee_name: l.payee_name, account_code: '' });
 
 async function readFile(file) {
   if (!file) return;
@@ -135,7 +139,7 @@ const refs = computed(() => {
 function setReference(l, p, value) {
   const v = value.trim();
   if (v === (refs.value.get(idOf(l, p)) || '') && p.refMode === 'auto') return;
-  if (v === '') { p.ref = ''; p.refMode = l.amount_cents > 0 ? 'manual' : 'auto'; }        // back to how it started
+  if (v === '') { p.ref = ''; p.refMode = wantsInvoice(l) ? 'manual' : 'auto'; }           // back to how it started
   else if (v.toLowerCase() === prefix.value.toLowerCase()) { p.ref = ''; p.refMode = 'auto'; }   // just "bk": the next bank number
   else { p.ref = v; p.refMode = 'manual'; }
 }
@@ -281,7 +285,7 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
               <td class="tick"><input v-if="l.status === 'new'" type="checkbox" v-model="l.include" :aria-label="'Add ' + l.description" /></td>
               <td class="nowrap" data-col="date"><input v-if="l.status === 'new' && l.include" type="date" v-model="l.date" aria-label="Date" /><template v-else>{{ niceDate(l.date) }}</template></td>
               <td class="nowrap" data-col="reference">
-                <input v-if="l.status === 'new' && l.include" class="ref" :class="{ need: clash(l.fp) || (l.parts[0].refMode === 'manual' && !l.parts[0].ref) }" :value="refs.get(l.fp) || ''" :placeholder="l.amount_cents > 0 ? 'invoice no.' : 'automatic'" aria-label="Reference" @change="setReference(l, l.parts[0], $event.target.value)" />
+                <input v-if="l.status === 'new' && l.include" class="ref" :class="{ need: clash(l.fp) || (l.parts[0].refMode === 'manual' && !l.parts[0].ref) }" :value="refs.get(l.fp) || ''" :placeholder="wantsInvoice(l) ? 'invoice no.' : 'automatic'" aria-label="Reference" @change="setReference(l, l.parts[0], $event.target.value)" />
                 <template v-else-if="l.transaction">{{ l.transaction.reference }}</template>
               </td>
               <td class="desc" :title="l.description + ' ' + l.detail">{{ l.description }} <small>{{ l.detail }}</small></td>
@@ -312,7 +316,7 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
               <tr v-for="(p, i) in l.parts.slice(1)" :key="p.key" :data-fp="idOf(l, p)" class="part" :class="{ joined: i < l.parts.length - 2 }">
                 <td></td>
                 <td class="muted">↳ part {{ i + 2 }}</td>
-                <td class="nowrap" data-col="reference"><input class="ref" :class="{ need: clash(idOf(l, p)) || (p.refMode === 'manual' && !p.ref) }" :value="refs.get(idOf(l, p)) || ''" :placeholder="l.amount_cents > 0 ? 'invoice no.' : 'automatic'" aria-label="Reference" @change="setReference(l, p, $event.target.value)" /></td>
+                <td class="nowrap" data-col="reference"><input class="ref" :class="{ need: clash(idOf(l, p)) || (p.refMode === 'manual' && !p.ref) }" :value="refs.get(idOf(l, p)) || ''" :placeholder="wantsInvoice(l) ? 'invoice no.' : 'automatic'" aria-label="Reference" @change="setReference(l, p, $event.target.value)" /></td>
                 <td class="muted desc">of {{ money(Math.abs(l.amount_cents)) }}</td>
                 <td class="num" :data-col="l.amount_cents < 0 ? 'amount' : null"><input v-if="l.amount_cents < 0" v-model="p.amount" class="num amt" :class="{ need: partCents(l, p) === null }" inputmode="decimal" placeholder="0.00" aria-label="Amount of this part" /></td>
                 <td class="num" :data-col="l.amount_cents > 0 ? 'amount' : null"><input v-if="l.amount_cents > 0" v-model="p.amount" class="num amt" :class="{ need: partCents(l, p) === null }" inputmode="decimal" placeholder="0.00" aria-label="Amount of this part" /></td>

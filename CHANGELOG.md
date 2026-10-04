@@ -8,6 +8,8 @@ the person using it, which objects changed, and which BUGS_AND_IMPROVEMENTS item
 - Removed the "possibly already entered" question from the bank import. A statement line is either matched
   to an entry of the same amount within 4 days (and ticked off) or it is new. The server's last check
   against doubling up now uses the same 4 days.
+- Money coming in whose bank description starts with the word "From" is a transfer from another of the
+  company's accounts: it gets an automatic bank reference like a payment, not a blank one for an invoice number.
 - Tested: 30 automated tests pass; in the browser a line whose amount matches an entry nine days earlier
   arrives as an ordinary ticked line with no question.
 
