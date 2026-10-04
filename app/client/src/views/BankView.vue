@@ -290,6 +290,7 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
       <div class="bar">
         <div class="seg"><button :class="{ on: show === 'new' }" @click="show = 'new'">New lines ({{ data.counts.fresh }})</button><button :class="{ on: show === 'all' }" @click="show = 'all'">Whole statement</button></div>
         <span v-if="fresh.length" class="muted keys"><kbd>↑</kbd> <kbd>↓</kbd> move between lines · <kbd>Ctrl</kbd>+<kbd>'</kbd> copies the value above · <kbd>F4</kbd> opens a list</span>
+        <span v-if="fresh.some(wantsInvoice)" class="muted keys"><span class="swatch"></span> receipts</span>
         <span class="grow"></span>
         <span v-if="needRef.length" class="pill warn">{{ needRef.length }} need a reference</span>
         <span v-if="uncoded.length" class="pill warn">{{ uncoded.length }} need a ledger code</span>
@@ -300,7 +301,7 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
         <thead><tr><th>Date</th><th>Reference</th><th>Bank description</th><th class="num">Payment</th><th class="num">Receipt</th><th v-if="hasBankBalance" class="num">Bank bal.</th><th class="num">Books bal.</th><th>Quick code</th><th>Payee in the books</th><th>Ledger code</th><th></th></tr></thead>
         <tbody>
           <template v-for="l in visible" :key="l.fp">
-            <tr :data-fp="l.fp" :class="{ dim: l.status !== 'new', joined: l.parts?.length > 1 }">
+            <tr :data-fp="l.fp" :class="{ dim: l.status !== 'new', joined: l.parts?.length > 1, receipt: wantsInvoice(l) }">
               <td class="nowrap" data-col="date"><input v-if="l.status === 'new'" type="date" v-model="l.date" aria-label="Date" /><template v-else>{{ niceDate(l.date) }}</template></td>
               <td class="nowrap" data-col="reference">
                 <input v-if="l.status === 'new'" class="ref" :class="{ need: clash(l.fp) || (l.parts[0].refMode === 'manual' && !l.parts[0].ref) }" :value="refs.get(l.fp) || ''" :placeholder="wantsInvoice(l) ? 'invoice no.' : 'automatic'" aria-label="Reference" @change="setReference(l, l.parts[0], $event.target.value)" />
@@ -337,8 +338,8 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
               </template>
             </tr>
             <template v-if="l.status === 'new'">
-              <tr v-for="(p, i) in l.parts.slice(1)" :key="p.key" :data-fp="idOf(l, p)" class="part" :class="{ joined: i < l.parts.length - 2 }">
-                <td class="nowrap"><input type="date" :value="l.date" disabled aria-label="Date (set on the first row)" title="Change the date on the first row of this line" /></td>
+              <tr v-for="(p, i) in l.parts.slice(1)" :key="p.key" :data-fp="idOf(l, p)" class="part" :class="{ joined: i < l.parts.length - 2, receipt: wantsInvoice(l) }">
+                <td class="nowrap" data-col="date"><input type="date" v-model="l.date" aria-label="Date" title="One bank line has one date: changing it here changes every part" /></td>
                 <td class="nowrap" data-col="reference"><input class="ref" :class="{ need: (clash(idOf(l, p)) || (p.refMode === 'manual' && !p.ref)) }" :value="refs.get(idOf(l, p)) || ''" :placeholder="wantsInvoice(l) ? 'invoice no.' : 'automatic'" aria-label="Reference" @change="setReference(l, p, $event.target.value)" /></td>
                 <td class="desc" :title="l.description + ' ' + l.detail + ' - part ' + (i + 2) + ' of ' + l.parts.length + ', line total ' + money(Math.abs(l.amount_cents))">{{ l.description }} <small>(split) {{ l.detail }}</small></td>
                 <td class="num" :data-col="l.amount_cents < 0 ? 'amount' : null"><input v-if="l.amount_cents < 0" v-model="p.amount" class="num amt" :class="{ need: partCents(l, p) === null }" inputmode="decimal" placeholder="0.00" aria-label="Amount of this part" @change="tidyAmount(p)" /></td>
@@ -412,6 +413,7 @@ td.off { color: var(--amber); font-weight: 650; }
 .fit { overflow-x: auto; }
 .review { font-size: 12.5px; }
 .keys { font-size: 12px; }
+.swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: var(--receipt); border: 1px solid var(--line); vertical-align: -2px; }
 .keys kbd { font: inherit; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; background: var(--soft); }
 .review th, .review td { padding: 4px 6px; }
 .review th:first-child, .review td:first-child { padding-left: 12px; }
@@ -437,6 +439,8 @@ td.off { color: var(--amber); font-weight: 650; }
 .review td.act { padding-left: 0; }
 .review td.act button { padding: 0 7px; height: 24px; font-size: 12px; vertical-align: top; margin-top: 1px; }
 .review tr.part td { background: var(--soft); }
+/* Receipts stand out from the run of payments: these are the lines that need an invoice number. */
+.review tr.receipt td { background: var(--receipt); }
 .veil { position: fixed; inset: 0; background: rgba(10, 20, 25, .55); display: grid; place-items: center; z-index: 30; padding: 16px; }
 .dialog { width: min(520px, 100%); margin: 0; box-shadow: 0 20px 60px rgba(0, 0, 0, .35); }
 .dialog td.in { padding-left: 28px; color: var(--muted); }
