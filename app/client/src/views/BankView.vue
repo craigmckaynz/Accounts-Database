@@ -1,9 +1,9 @@
 <script setup>
-// Bank statement import: choose the CSV from internet banking, see how it lines up with the books,
-// give the new lines a ledger code, and add them.
+// Bank statement import. Choosing a file only shows a preview: every line can be checked and edited, and
+// nothing reaches the books until Add is pressed and confirmed.
 import { ref, computed } from 'vue';
 import { store, api, loadMeta, toast, money, dollars, accountName, openTransaction } from '../store.js';
-import { niceDate } from '../../../shared/money.js';
+import { niceDate, gstInside, rateOn, isIsoDate } from '../../../shared/money.js';
 
 const text = ref('');
 const fileName = ref('');
@@ -13,6 +13,7 @@ const busy = ref(false);
 const error = ref(null);
 const show = ref('new');
 const dragging = ref(false);
+const confirming = ref(false);
 
 async function readFile(file) {
   if (!file) return;
@@ -22,14 +23,16 @@ async function readFile(file) {
   await run();
 }
 async function run() {
-  busy.value = true; error.value = null;
+  busy.value = true; error.value = null; confirming.value = false;
   try {
     const d = await api('POST', '/api/bank/preview', { text: text.value, mapping: mapping.value });
     mapping.value = { ...d.mapping };
     if (!d.needs_mapping) {
       for (const l of d.lines) {
         if (l.status !== 'new') continue;
-        l.include = true;
+        l.bank_date = l.date;
+        l.decision = null;                        // for a possible duplicate: 'same' or 'separate'
+        l.include = !l.possible;                  // a possible duplicate is held back until decided
         l.payee_name = l.suggestion.payee_name;
         l.payee_code = l.suggestion.payee_code;
         l.account_code = l.suggestion.account_code || '';
@@ -40,22 +43,43 @@ async function run() {
   } catch (e) { error.value = e.message; data.value = null; }
   busy.value = false;
 }
-function reset() { data.value = null; text.value = ''; fileName.value = ''; mapping.value = null; error.value = null; }
+function reset() { data.value = null; text.value = ''; fileName.value = ''; mapping.value = null; error.value = null; confirming.value = false; }
 
 const fresh = computed(() => (data.value?.lines || []).filter(l => l.status === 'new'));
-const chosen = computed(() => fresh.value.filter(l => l.include));
-const uncoded = computed(() => chosen.value.filter(l => !store.accounts.some(a => a.code === l.account_code.trim())));
+const same = computed(() => fresh.value.filter(l => l.decision === 'same'));
+const chosen = computed(() => fresh.value.filter(l => l.include && l.decision !== 'same'));
+const undecided = computed(() => fresh.value.filter(l => l.possible && !l.decision));
+const leftOut = computed(() => fresh.value.filter(l => !l.include && l.decision !== 'same' && !(l.possible && !l.decision)));
+const known = code => store.accounts.some(a => a.code === code.trim());
+const uncoded = computed(() => chosen.value.filter(l => !known(l.account_code)));
+const badDate = computed(() => chosen.value.filter(l => !isIsoDate(l.date)));
+const toTick = computed(() => data.value.lines.filter(l => l.status === 'matched').length + same.value.length);
 const visible = computed(() => (show.value === 'new' ? fresh.value : data.value.lines));
+const sum = (rows, sign) => rows.reduce((s, l) => s + (Math.sign(l.amount_cents) === sign ? Math.abs(l.amount_cents) : 0), 0);
 
+function decide(l, what) {
+  l.decision = what;
+  l.include = what === 'separate';
+}
 // A quick code typed into the payee box fills the name and ledger code, as on the Transactions screen.
 function resolvePayee(l) {
-  const p = store.payees.find(x => x.code === l.payee_name.trim().toUpperCase());
+  const typed = l.payee_name.trim();
+  const p = store.payees.find(x => x.code === typed.toUpperCase());
   if (p) { l.payee_name = p.name; l.payee_code = p.code; if (p.account_code) l.account_code = p.account_code; }
+  else if (!store.payees.some(x => x.code === l.payee_code && x.name === typed)) l.payee_code = null;
 }
-// Giving one line a code gives it to the other lines from the same payee that have none yet.
+// Coding one line codes the other lines from the same payee that have no code yet.
 function spread(l) {
   for (const o of fresh.value) if (o !== l && !o.account_code && o.description === l.description) { o.account_code = l.account_code; o.payee_name = l.payee_name; o.payee_code = l.payee_code; }
 }
+function gstOf(l) {
+  const a = store.accounts.find(x => x.code === l.account_code.trim());
+  if (!a) return null;
+  if (a.gst_exempt) return 0;
+  const rate = rateOn(store.gst_rates, l.date);
+  return rate === null ? null : gstInside(l.amount_cents, rate);
+}
+function tickAll(on) { for (const l of fresh.value) if (!l.possible) l.include = on; }
 
 // What the books will read at the statement's closing date once the ticked lines are added.
 const closing = computed(() => {
@@ -65,24 +89,28 @@ const closing = computed(() => {
   return { ...c, after, diff: after - c.balance_cents };
 });
 
-async function importNow() {
+function review() {
+  error.value = null;
   if (uncoded.value.length) { error.value = `${uncoded.value.length} ticked ${uncoded.value.length === 1 ? 'line needs' : 'lines need'} a ledger code.`; return; }
+  if (badDate.value.length) { error.value = 'A ticked line has no date.'; return; }
+  confirming.value = true;
+}
+async function importNow() {
   busy.value = true; error.value = null;
   try {
     const d = data.value;
     const r = await api('POST', '/api/bank/import', {
-      add: chosen.value.map(l => ({ n: l.n, fp: l.fp, date: l.date, amount_cents: l.amount_cents, description: l.description, payee_name: l.payee_name.trim(), payee_code: l.payee_code, account_code: l.account_code.trim() })),
-      matched: d.lines.filter(l => l.status === 'matched').map(l => ({ fp: l.fp, transaction_id: l.transaction.id })),
+      add: chosen.value.map(l => ({ n: l.n, fp: l.fp, date: l.date, bank_date: l.bank_date, amount_cents: l.amount_cents, description: l.description, payee_name: l.payee_name.trim(), payee_code: l.payee_code, account_code: l.account_code.trim(), allow_duplicate: l.decision === 'separate' })),
+      matched: d.lines.filter(l => l.status === 'matched').map(l => ({ fp: l.fp, transaction_id: l.transaction.id })).concat(same.value.map(l => ({ fp: l.fp, transaction_id: l.possible.id }))),
       checkpoint: d.closing ? { date: d.closing.date, balance_cents: d.closing.balance_cents } : null
     });
     toast(`Added ${r.added} ${r.added === 1 ? 'entry' : 'entries'}; ${r.ticked} already in the books ticked off`);
     await loadMeta();
     await run();
-  } catch (e) { error.value = e.message; }
+  } catch (e) { error.value = e.message; confirming.value = false; }
   busy.value = false;
 }
 const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['debit', 'Money out'], ['credit', 'Money in'], ['payee', 'Payee / description'], ['balance', 'Balance']];
-const statusLabel = { done: 'In the books', matched: 'In the books', new: 'New' };
 </script>
 
 <template>
@@ -91,7 +119,7 @@ const statusLabel = { done: 'In the books', matched: 'In the books', new: 'New' 
   <label v-if="!data" class="card drop" :class="{ over: dragging }" @dragover.prevent="dragging = true" @dragleave="dragging = false" @drop.prevent="dragging = false; readFile($event.dataTransfer.files[0])">
     <input type="file" accept=".csv,text/csv,text/plain" @change="readFile($event.target.files[0])" />
     <b>Choose the CSV file from internet banking</b>
-    <span class="muted">or drop it here. Export the account's transactions as CSV for the dates you want; overlapping an earlier import is fine, nothing is added twice.</span>
+    <span class="muted">or drop it here. You get a preview to check and edit first; nothing is added until you say so. Overlapping an earlier import is fine: nothing already in the books is added again.</span>
     <span v-if="busy" class="muted">Reading…</span>
   </label>
   <p v-if="error" class="banner error" role="alert">{{ error }}</p>
@@ -109,10 +137,12 @@ const statusLabel = { done: 'In the books', matched: 'In the books', new: 'New' 
   </div>
 
   <template v-else-if="data">
+    <p v-if="data.counts.fresh || data.counts.matched" class="banner info"><b>Preview.</b> Nothing has been added to the books yet. Check the new lines, change the payee, ledger code or date where needed, untick any you do not want, then press Add.</p>
     <div class="tiles">
       <div class="card tile"><small>{{ fileName }}</small><b>{{ data.counts.total }} lines</b><small>{{ niceDate(data.from) }} to {{ niceDate(data.to) }}</small></div>
       <div class="card tile"><small>Already in the books</small><b>{{ data.counts.done + data.counts.matched }}</b><small>{{ data.counts.matched ? data.counts.matched + ' to tick off' : 'all ticked off' }}</small></div>
       <div class="card tile" :class="{ hot: data.counts.fresh }"><small>New, to add</small><b>{{ data.counts.fresh }}</b><small>{{ chosen.length }} ticked</small></div>
+      <div v-if="data.counts.possible" class="card tile" :class="{ warn: undecided.length }"><small>Possibly already entered</small><b>{{ data.counts.possible }}</b><small>{{ undecided.length ? undecided.length + ' to decide' : 'all decided' }}</small></div>
       <div class="card tile" :class="{ warn: data.counts.book_only }"><small>In the books, not on the statement</small><b>{{ data.counts.book_only }}</b><small>{{ data.counts.book_only ? 'listed below' : 'none' }}</small></div>
       <div v-if="closing" class="card tile" :class="closing.diff === 0 ? 'good' : 'warn'">
         <small>Statement balance {{ niceDate(closing.date) }}</small><b>{{ dollars(closing.balance_cents) }}</b>
@@ -123,32 +153,47 @@ const statusLabel = { done: 'In the books', matched: 'In the books', new: 'New' 
     <div class="card flush">
       <div class="bar">
         <div class="seg"><button :class="{ on: show === 'new' }" @click="show = 'new'">New lines ({{ data.counts.fresh }})</button><button :class="{ on: show === 'all' }" @click="show = 'all'">Whole statement</button></div>
+        <button v-if="fresh.length" class="small" @click="tickAll(true)">Tick all</button><button v-if="fresh.length" class="small" @click="tickAll(false)">Untick all</button>
         <span class="grow"></span>
+        <span v-if="undecided.length" class="pill warn">{{ undecided.length }} to decide</span>
         <span v-if="uncoded.length" class="pill warn">{{ uncoded.length }} need a ledger code</span>
-        <button class="primary" :disabled="busy || (!chosen.length && !data.counts.matched)" @click="importNow">
-          {{ chosen.length ? `Add ${chosen.length} ${chosen.length === 1 ? 'entry' : 'entries'}` : 'Tick off matched entries' }}</button>
+        <button class="primary" :disabled="busy || (!chosen.length && !toTick)" @click="review">
+          {{ chosen.length ? `Add ${chosen.length} ${chosen.length === 1 ? 'entry' : 'entries'}…` : 'Tick off matched entries…' }}</button>
       </div>
       <table v-if="visible.length">
-        <thead><tr><th></th><th>Date</th><th>Bank description</th><th class="num">Payment</th><th class="num">Receipt</th><th>Payee in the books</th><th>Ledger code</th><th></th></tr></thead>
+        <thead><tr><th></th><th>Date</th><th>Bank description</th><th class="num">Payment</th><th class="num">Receipt</th><th>Payee in the books</th><th>Ledger code</th><th class="num">GST</th><th>Where the codes came from</th></tr></thead>
         <tbody>
-          <tr v-for="l in visible" :key="l.fp" :class="{ dim: l.status !== 'new' || !l.include }">
-            <td><input v-if="l.status === 'new'" type="checkbox" v-model="l.include" :aria-label="'Add ' + l.description" /></td>
-            <td class="nowrap">{{ niceDate(l.date) }}</td>
-            <td>{{ l.description }} <small>{{ l.detail }}</small></td>
-            <td class="num">{{ l.amount_cents < 0 ? money(-l.amount_cents) : '' }}</td>
-            <td class="num">{{ l.amount_cents > 0 ? money(l.amount_cents) : '' }}</td>
-            <template v-if="l.status === 'new'">
-              <td><input v-model="l.payee_name" list="bank-payees" :disabled="!l.include" style="width: 100%" @change="resolvePayee(l); spread(l)" aria-label="Payee" /></td>
-              <td class="nowrap"><input v-model="l.account_code" list="bank-accounts" :disabled="!l.include" style="width: 90px" :class="{ need: l.include && !accountName(l.account_code.trim()) }" @change="spread(l)" aria-label="Ledger code" />
-                <small> {{ accountName(l.account_code.trim()) }}</small></td>
-              <td><span class="pill info">{{ l.suggestion.from ? 'New · ' + l.suggestion.from : 'New' }}</span></td>
-            </template>
-            <template v-else>
-              <td>{{ l.transaction.payee_name }} <small>{{ l.transaction.reference }}{{ l.transaction.date !== l.date ? ' · dated ' + niceDate(l.transaction.date) : '' }}</small></td>
-              <td>{{ l.transaction.account_code }} <small>{{ accountName(l.transaction.account_code) }}</small></td>
-              <td><span class="pill ok">{{ statusLabel[l.status] }}</span></td>
-            </template>
-          </tr>
+          <template v-for="l in visible" :key="l.fp">
+            <tr :class="{ dim: l.status !== 'new' || !l.include, joined: l.possible }">
+              <td><input v-if="l.status === 'new' && !l.possible" type="checkbox" v-model="l.include" :aria-label="'Add ' + l.description" /></td>
+              <td class="nowrap"><input v-if="l.status === 'new' && l.include" type="date" v-model="l.date" aria-label="Date" /><template v-else>{{ niceDate(l.date) }}</template></td>
+              <td>{{ l.description }} <small>{{ l.detail }}</small></td>
+              <td class="num">{{ l.amount_cents < 0 ? money(-l.amount_cents) : '' }}</td>
+              <td class="num">{{ l.amount_cents > 0 ? money(l.amount_cents) : '' }}</td>
+              <template v-if="l.status === 'new'">
+                <td><input v-model="l.payee_name" list="bank-payees" :disabled="!l.include" style="width: 100%; min-width: 150px" @change="resolvePayee(l); spread(l)" aria-label="Payee or quick code" />
+                  <small v-if="l.payee_code">quick code {{ l.payee_code }}</small></td>
+                <td class="nowrap"><input v-model="l.account_code" list="bank-accounts" :disabled="!l.include" style="width: 84px" :class="{ need: l.include && !known(l.account_code) }" @change="spread(l)" aria-label="Ledger code" />
+                  <br /><small>{{ accountName(l.account_code.trim()) }}</small></td>
+                <td class="num">{{ gstOf(l) === null ? '' : money(gstOf(l)) }}</td>
+                <td><small>{{ l.suggestion.from || 'not seen before — choose a code' }}</small></td>
+              </template>
+              <template v-else>
+                <td>{{ l.transaction.payee_name }} <small>{{ l.transaction.reference }}{{ l.transaction.date !== l.date ? ' · dated ' + niceDate(l.transaction.date) : '' }}</small></td>
+                <td>{{ l.transaction.account_code }} <small>{{ accountName(l.transaction.account_code) }}</small></td>
+                <td class="num">{{ money(l.transaction.gst_cents, { blankZero: true }) }}</td>
+                <td><span class="pill ok">In the books</span></td>
+              </template>
+            </tr>
+            <tr v-if="l.possible" class="ask">
+              <td></td>
+              <td colspan="8">
+                <span class="pill warn">Possibly already entered</span>
+                The books have <b>{{ l.possible.reference }}</b> {{ l.possible.payee_name }} for the same amount, dated {{ niceDate(l.possible.date) }}.
+                <span class="seg" style="margin-left: 8px"><button :class="{ on: l.decision === 'same' }" @click="decide(l, 'same')">Same entry — don’t add</button><button :class="{ on: l.decision === 'separate' }" @click="decide(l, 'separate')">Separate — add it</button></span>
+              </td>
+            </tr>
+          </template>
         </tbody>
       </table>
       <p v-else class="empty">Every line of this statement is already in the books.</p>
@@ -165,6 +210,28 @@ const statusLabel = { done: 'In the books', matched: 'In the books', new: 'New' 
     </div>
     <datalist id="bank-payees"><option v-for="p in store.payees" :key="p.code" :value="p.code">{{ p.name }}</option></datalist>
     <datalist id="bank-accounts"><option v-for="a in store.accounts.filter(a => a.active)" :key="a.code" :value="a.code">{{ a.description }}{{ a.sub_description ? ' / ' + a.sub_description : '' }}</option></datalist>
+
+    <div v-if="confirming" class="veil" @click.self="confirming = false">
+      <div class="card dialog" role="dialog" aria-modal="true" aria-label="Confirm import">
+        <h2>Add these to the books?</h2>
+        <table>
+          <tbody>
+            <tr><td>New entries to add</td><td class="num"><b>{{ chosen.length }}</b></td></tr>
+            <tr><td class="in">payments</td><td class="num">{{ money(sum(chosen, -1)) }}</td></tr>
+            <tr><td class="in">receipts</td><td class="num">{{ money(sum(chosen, 1)) }}</td></tr>
+            <tr><td>Entries already in the books to tick off</td><td class="num">{{ toTick }}</td></tr>
+            <tr v-if="leftOut.length"><td>Lines unticked (not added)</td><td class="num">{{ leftOut.length }}</td></tr>
+            <tr v-if="undecided.length"><td>Possible duplicates not decided (not added)</td><td class="num">{{ undecided.length }}</td></tr>
+            <tr v-if="closing"><td>Bank balance in the books at {{ niceDate(closing.date) }} afterwards</td><td class="num">{{ money(closing.after) }}</td></tr>
+            <tr v-if="closing"><td>Statement balance</td><td class="num">{{ money(closing.balance_cents) }} <span class="pill" :class="closing.diff === 0 ? 'ok' : 'warn'">{{ closing.diff === 0 ? 'agrees' : 'out by ' + money(Math.abs(closing.diff)) }}</span></td></tr>
+          </tbody>
+        </table>
+        <div class="row" style="justify-content: flex-end; margin-top: 14px">
+          <button @click="confirming = false">Back to the preview</button>
+          <button class="primary" :disabled="busy" @click="importNow">{{ chosen.length ? `Add ${chosen.length} ${chosen.length === 1 ? 'entry' : 'entries'}` : 'Tick off' }}</button>
+        </div>
+      </div>
+    </div>
   </template>
 </template>
 
@@ -182,7 +249,13 @@ const statusLabel = { done: 'In the books', matched: 'In the books', new: 'New' 
 .bar { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .bar .grow { flex: 1; }
 tr.dim td { color: var(--muted); }
+tr.joined td { border-bottom: 0; }
+tr.ask td { background: var(--amber-soft); padding-top: 8px; padding-bottom: 8px; }
 .nowrap { white-space: nowrap; }
 td input { padding: 4px 7px; }
+td input[type="date"] { width: 132px; }
 input.need { border-color: var(--amber); box-shadow: 0 0 0 2px var(--amber-soft); }
+.veil { position: fixed; inset: 0; background: rgba(10, 20, 25, .55); display: grid; place-items: center; z-index: 30; padding: 16px; }
+.dialog { width: min(520px, 100%); margin: 0; box-shadow: 0 20px 60px rgba(0, 0, 0, .35); }
+.dialog td.in { padding-left: 28px; color: var(--muted); }
 </style>

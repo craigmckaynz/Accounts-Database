@@ -12,7 +12,11 @@ a first working prototype.
 
 ## Running it
 
-Double-click `Start Accounts.bat` in the repository root, or:
+Use the **McKay Accounts** shortcut on the desktop or Start menu (created by
+`tools/make-shortcut.ps1`; right-click it and choose Pin to taskbar). It runs `app/launch.ps1`, which starts
+the server quietly if it is not running and opens the app in its own window. The server keeps running in
+the background until the computer is restarted or signed out. `Start Accounts.bat` in the repository root
+does the same with a visible console, or by hand:
 
 ```
 cd app
@@ -40,10 +44,24 @@ Tests (made-up data, in memory): `npm test`.
 | Screen | What it does |
 |---|---|
 | Transactions | One entry line: date, payee or quick code, payment/receipt, amount, ledger code. A quick code fills the payee and ledger code; GST shows as you type; the reference is offered for the month of the date; Enter saves and leaves the cursor ready for the next statement line with the date kept. The month's entries sit below with the bank balance after each one, so the screen can be read down beside the statement. Click an entry to change or delete it (delete has Undo). Search covers every year. |
-| Bank import | Choose the CSV exported from internet banking. Each statement line is lined up against the books: lines already entered are ticked off, new lines are offered as entries with the payee and ledger code filled in where the app has seen that payee before (it remembers what you choose), and entries in the books that the statement does not have are listed - the usual home of a double entry or a wrong amount. Adding is all-or-nothing, the same file can be loaded again without doubling up, and the statement's closing balance is recorded for the problem finder. Column layout and date format are worked out from the file; if they cannot be, the screen asks which column is which. |
+| Bank import | Choose the CSV exported from internet banking. You get a **preview**: nothing reaches the books until you press Add and confirm the summary. Each statement line is lined up against the books. Lines already entered are ticked off. New lines are offered as entries with the payee, quick code and ledger code taken from past entries: the description is matched on the words it shares with payees already in the books (rare words count for more, so "HILLTOP FUEL STOP WHK 4421" finds "HILLTOP FUEL"), the most recent coding wins, and the screen says where each suggestion came from. What you choose is remembered for that bank description. In the preview you can change the date, payee and ledger code of any line, see its GST, and untick lines. Entries in the books that the statement does not have are listed - the usual home of a double entry or a wrong amount. |
 | Reports | By ledger code (with or without every transaction), transaction listing with running balance, and GST summary, for a preset or custom period and any set of ledger codes. Print or save as PDF, or download for Excel. Every report shows the opening and closing bank balance. |
 | Problem finder | Enter a bank statement's closing balance. Where the books first disagree, it searches the entries since the last statement that agreed and lists the likeliest culprits: an entry made twice, a payment entered as a receipt, digits swapped, a slipped decimal point, an extra or missing digit - each with a one-click fix. It also lists skipped reference numbers and entries edited or deleted in that stretch, and sweeps for missing data, unknown ledger codes, future dates, references in the wrong month, double entries and GST that does not match the rate for the date. |
 | Setup | Bank account name, opening balance, financial year start, lock date, ledger codes, quick codes, GST rates. |
+
+## No duplicates on import
+
+Three things stop a statement line being added when the books already have it:
+
+1. A line brought in before carries a fingerprint (date, amount, description, position among identical
+   lines) and is recognised as done, however the files overlap.
+2. An entry of the same amount within 4 days of the bank's date is taken to be the same transaction and is
+   ticked off instead of added. Each entry can only be claimed by one statement line, so two identical
+   payments on the statement against one in the books leaves one to add.
+3. An entry of the same amount 5 to 14 days away is a *possible* duplicate: the line is held back and the
+   screen asks "same entry" or "separate". The server enforces this as well - it refuses to add a line when
+   an unclaimed entry of the same amount sits within 14 days, unless the line was confirmed as separate - and
+   an import is all-or-nothing, so a refusal adds nothing.
 
 ## How it differs from the Access database
 
@@ -79,6 +97,9 @@ client/                  the Vue application
 
 ## Not done yet
 
+- Matching bank descriptions to past payees has been checked on made-up statements and, on the real data,
+  by feeding each recent payee name back through it (it finds its own ledger code). How well the bank's
+  actual wording matches hand-typed payee names will only show on a real export.
 - The bank import has been tested on made-up statements in the common layouts (one amount column, separate
   money in / money out columns, newest or oldest first, with or without a header row). It has not yet been
   run on a real export from your bank.

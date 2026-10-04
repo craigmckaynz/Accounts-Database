@@ -3,6 +3,23 @@
 One entry per version installed into the master database, newest first. Each entry says what changed for
 the person using it, which objects changed, and which BUGS_AND_IMPROVEMENTS items it closes.
 
+## Application 0.3.0 - 2026-10-04 (prototype)
+
+- Bank import suggests the payee, quick code and ledger code from past entries, matching the bank's
+  description to payees already in the books on the words they share; falls back on an amount that has only
+  ever gone to one place. Each suggestion says where it came from.
+- The import screen is a preview: date, payee and ledger code can be edited per line, GST is shown, lines
+  can be unticked, and a confirmation summary comes before anything is added.
+- Duplicate protection: possible duplicates (same amount, 5 to 14 days away) are held back for a decision,
+  and the server refuses to add a line the books already appear to have.
+- "McKay Accounts" shortcut (desktop and Start menu) with its own icon; opens the app in its own window.
+- Tested: 31 automated tests pass. In the browser on a made-up statement: suggestions from past entries
+  with quick codes, a possible duplicate held back and resolved as "same entry", the confirmation summary,
+  3 entries added and 3 ticked off, nothing added before confirming. Launcher: cold start in about 3.5 s
+  and reuse of the running server on a second launch. On the real data (counts only): 1,032 recent entries
+  fed back through the matcher, all matched, 1,025 to the ledger code they were given.
+- Not tested: a real export from the bank; pinning to the taskbar (Windows only lets the user do that).
+
 ## Application 0.2.0 - 2026-10-04 (prototype)
 
 - Bank statement import: reads the bank's CSV, ticks off lines already in the books, offers the rest as

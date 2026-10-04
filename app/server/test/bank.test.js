@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { openDb } from '../db.js';
 import * as ledger from '../ledger.js';
-import { parseCsv, parseDate, parseAmount, detectColumns, statementLines, preview, commit, matchKey } from '../bank.js';
+import { parseCsv, parseDate, parseAmount, detectColumns, statementLines, preview, commit, matchKey, buildHistory, bestMatch, words } from '../bank.js';
 import { findProblems } from '../problems.js';
 
 function fresh() {
@@ -85,7 +85,7 @@ test('statement lines are matched to the books, the rest are offered with a ledg
   assert.equal(p.lines[2].suggestion.payee_code, 'FUEL');
   assert.equal(p.lines[1].suggestion.account_code, null);             // bank fee: never seen before
   assert.deepEqual(p.book_only.map(t => t.id), [extra.id]);
-  assert.deepEqual(p.counts, { total: 4, done: 0, matched: 2, fresh: 2, book_only: 1 });
+  assert.deepEqual(p.counts, { total: 4, done: 0, matched: 2, fresh: 2, possible: 0, book_only: 1 });
 });
 
 test('importing adds the new lines once, remembers the ledger code, and records the closing balance', () => {
@@ -126,4 +126,87 @@ test('unreadable columns ask for a mapping instead of failing', () => {
   const p = preview(db, 'When,What,How much\nyesterday,thing,lots\n');
   assert.ok(p.needs_mapping);
   assert.deepEqual(p.columns, ['When', 'What', 'How much']);
+});
+
+test('past entries give the ledger code and quick code, even when the bank words the payee differently', () => {
+  const db = fresh();
+  db.exec("INSERT INTO accounts (code, main_code, description) VALUES ('240', '240', 'Purchases'), ('418', '418', 'Telephones'); INSERT INTO payees (code, name, account_code) VALUES ('NET', 'KIWILINK BROADBAND', '418');");
+  const add = (date, name, account, extra = {}) => ledger.createTransaction(db, { date, type: 'P', amount_cents: 5000, account_code: account, payee_name: name, ...extra });
+  for (let d = 1; d <= 5; d++) add('2026-05-0' + d, 'HILLTOP FUEL', '270', { payee_code: 'FUEL' });
+  add('2026-05-10', 'HILLTOP CAFE', '240');
+  ledger.createTransaction(db, { date: '2026-05-12', type: 'R', amount_cents: 230000, account_code: '230', payee_name: 'NORTHFIELD DC' });
+  const h = buildHistory(db);
+  const line = (description, amount = -5000, detail = '') => ({ description, detail, amount_cents: amount });
+
+  let m = bestMatch(h, line('HILLTOP FUEL STOP WHAKATANE', -6120, 'CARD 4421'));
+  assert.match(m.payee.name, /^HILLTOP FUEL/);      // the quick code's own name or the typed one: same codes
+  assert.equal(m.payee.account_code, '270');
+  assert.equal(m.payee.payee_code, 'FUEL');
+  assert.equal(bestMatch(h, line('HILLTOP CAFE 4421')).payee.account_code, '240');           // the other Hilltop
+  assert.equal(bestMatch(h, line('NORTHFIELD DISTRICT COUNCIL', 99000, 'DIRECT CREDIT')).payee.account_code, '230');
+  assert.equal(bestMatch(h, line('KIWILINK BROADBAN', -8990, 'DIRECT DEBIT')).payee.payee_code, 'NET');   // a quick code never used yet, name cut short
+  assert.equal(bestMatch(h, line('SOMEWHERE NEVER SEEN')), null);
+  assert.equal(bestMatch(h, line('EFTPOS CARD 4421')), null);                                  // nothing but noise words
+  assert.deepEqual(words('Direct Debit KIWILINK Broadband Ltd 0042'), ['KIWILINK', 'BROADBAND']);
+});
+
+test('when a payee has been recoded, the recent coding wins', () => {
+  const db = fresh();
+  db.exec("INSERT INTO accounts (code, main_code, description) VALUES ('240', '240', 'Purchases')");
+  for (let d = 1; d <= 9; d++) ledger.createTransaction(db, { date: '2025-03-0' + d, type: 'P', amount_cents: 1000, account_code: '240', payee_name: 'TRADE HARDWARE' });
+  for (let d = 10; d <= 22; d++) ledger.createTransaction(db, { date: '2026-03-' + d, type: 'P', amount_cents: 1000, account_code: '270', payee_name: 'TRADE HARDWARE' });
+  assert.equal(bestMatch(buildHistory(db), { description: 'TRADE HARDWARE 0031', detail: '', amount_cents: -4500 }).payee.account_code, '270');
+});
+
+test('a description that says nothing falls back on an amount that always goes to one place', () => {
+  const db = fresh();
+  db.exec("INSERT INTO accounts (code, main_code, description) VALUES ('380', '380', 'Office Rent')");
+  const today = new Date();
+  for (let m = 1; m <= 4; m++) { const d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - m, 1)).toISOString().slice(0, 10); ledger.createTransaction(db, { date: d, type: 'P', amount_cents: 184000, account_code: '380', payee_name: 'HARBOUR PROPERTY TRUST' }); }
+  const d = new Date().toLocaleDateString('en-CA');
+  const nz = d.slice(8, 10) + '/' + d.slice(5, 7) + '/' + d.slice(0, 4);
+  const p = preview(db, ['Date,Amount,Payee', nz + ',-1840.00,AP 0012345', nz + ',-77.00,AP 0099999'].join('\n'));
+  assert.equal(p.lines[0].suggestion.account_code, '380');
+  assert.match(p.lines[0].suggestion.from, /same amount/);
+  assert.equal(p.lines[1].suggestion.account_code, null);
+});
+
+test('nothing already in the books is added again', () => {
+  const db = fresh();
+  // typed by hand nine days before the bank's date: too far to be assumed the same, close enough to ask
+  const typed = ledger.createTransaction(db, { date: '2026-06-22', type: 'P', amount_cents: 5750, account_code: '270', payee_name: 'HILLTOP FUEL' });
+  const csv = ['Date,Amount,Payee', '01/07/2026,-57.50,HILLTOP FUEL STOP'].join('\n');
+  const p = preview(db, csv);
+  assert.equal(p.lines[0].status, 'new');
+  assert.equal(p.lines[0].possible.id, typed.id);
+  assert.equal(p.counts.possible, 1);
+  const line = { ...p.lines[0], bank_date: p.lines[0].date, payee_name: 'HILLTOP FUEL', account_code: '270' };
+
+  // the server refuses it even if the screen sends it as new
+  assert.throws(() => commit(db, { add: [line] }), /already have bk26.06-01 for the same amount/);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM transactions').get().n, 1);
+
+  // "it is the same entry": ticked off, nothing added, and the file is clean next time
+  assert.deepEqual(commit(db, { matched: [{ fp: line.fp, transaction_id: typed.id }] }), { added: 0, ticked: 1 });
+  assert.equal(preview(db, csv).lines[0].status, 'done');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM transactions').get().n, 1);
+});
+
+test('two identical payments on the statement and one in the books: one is new, and can be added on purpose', () => {
+  const db = fresh();
+  const typed = ledger.createTransaction(db, { date: '2026-07-01', type: 'P', amount_cents: 5750, account_code: '270', payee_name: 'HILLTOP FUEL' });
+  const p = preview(db, ['Date,Amount,Payee', '01/07/2026,-57.50,HILLTOP FUEL STOP', '01/07/2026,-57.50,HILLTOP FUEL STOP'].join('\n'));
+  assert.deepEqual(p.lines.map(l => l.status), ['matched', 'new']);
+  assert.equal(p.lines[1].possible, undefined);
+  const r = commit(db, { matched: [{ fp: p.lines[0].fp, transaction_id: typed.id }], add: [{ ...p.lines[1], bank_date: p.lines[1].date, payee_name: 'HILLTOP FUEL', account_code: '270' }] });
+  assert.deepEqual(r, { added: 1, ticked: 1 });
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM transactions').get().n, 2);
+});
+
+test('a separate transaction of the same amount can be added once it is confirmed', () => {
+  const db = fresh();
+  ledger.createTransaction(db, { date: '2026-06-22', type: 'P', amount_cents: 5750, account_code: '270', payee_name: 'HILLTOP FUEL' });
+  const p = preview(db, ['Date,Amount,Payee', '01/07/2026,-57.50,HILLTOP FUEL STOP'].join('\n'));
+  const r = commit(db, { add: [{ ...p.lines[0], bank_date: p.lines[0].date, payee_name: 'HILLTOP FUEL', account_code: '270', allow_duplicate: true }] });
+  assert.equal(r.added, 1);
 });
