@@ -3,6 +3,21 @@
 One entry per version installed into the master database, newest first. Each entry says what changed for
 the person using it, which objects changed, and which BUGS_AND_IMPROVEMENTS items it closes.
 
+## Application 0.4.0 - 2026-10-04 (prototype)
+
+- Bank import no longer suggests codes. Quick code and ledger code start empty on every new line, at
+  Craig's instruction: guessing is a bad idea, and empty boxes make the user check every transaction. The
+  matching against past entries, the "remembered" codes and the copying of a code to other lines from the
+  same payee are removed (the code is in git history at 0a18d60 if hints are ever wanted).
+- Import preview: Quick code column (choosing one fills the payee and ledger code, as the Access form did),
+  Reference column numbered automatically per month and editable, GST column removed, rows aligned on one
+  line, table sized to fit a 1280-wide window.
+- Ledger code and quick code lists have titled, aligned columns (Description / Code / GST; Code / Payee /
+  Ledger code); the ledger list is in description order.
+- Tested: 29 automated tests pass. In the browser on a made-up statement: every new line arrives with empty
+  codes, coding one line leaves an identical one empty, a quick code fills payee and ledger code, and Add is
+  refused while any ticked line has no ledger code.
+
 ## Application 0.3.1 - 2026-10-04 (prototype)
 
 - Bank import preview shows a running balance on every line: the bank's own balance (when the file has

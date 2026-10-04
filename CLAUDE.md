@@ -104,6 +104,9 @@ describes what is built and what is not.
   tests**; check the real data with counts and true/false comparisons only.
 - The bank import (`server/bank.js`) must stay safe to repeat: a statement line carries a fingerprint
   (`transactions.bank_ref`) and is never added twice. `npm run demo` also writes `demo-statement.csv`.
+- The bank import must not pre-fill the quick code or ledger code of a new line, and must not copy a code
+  from one line to another (Craig, 4 Oct 2026: "Guessing is a bad idea. This forces user to check every
+  transaction"). Do not reintroduce suggestions without being asked.
 - Money is integer cents everywhere; `shared/money.js` is the only place GST arithmetic lives.
 - After changing anything under `app/`: `npm test`, then `npm run build` (the server serves `dist/`), then
   check the screen on the demo data.

@@ -58,12 +58,6 @@ CREATE TABLE IF NOT EXISTS checkpoints (       -- balances read off bank stateme
   balance_cents INTEGER NOT NULL,
   note          TEXT NOT NULL DEFAULT ''
 );
-CREATE TABLE IF NOT EXISTS bank_matches (     -- which payee and ledger code a bank description was given last time
-  key          TEXT PRIMARY KEY,
-  payee_name   TEXT,
-  payee_code   TEXT,
-  account_code TEXT
-);
 CREATE TABLE IF NOT EXISTS changes (           -- every add, edit and delete, for undo and for finding slips
   id             INTEGER PRIMARY KEY,
   at             TEXT NOT NULL,

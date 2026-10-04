@@ -37,9 +37,8 @@ async function run() {
         l.reference = '';                         // empty = numbered automatically
         l.decision = null;                        // for a possible duplicate: 'same' or 'separate'
         l.include = !l.possible;                  // a possible duplicate is held back until decided
-        l.payee_name = l.suggestion.payee_name;
-        l.payee_code = l.suggestion.payee_code;
-        l.account_code = l.suggestion.account_code || '';
+        l.payee_code = null;                      // quick code and ledger code start empty: nothing is guessed,
+        l.account_code = '';                      // so every new line is looked at and coded by hand
       }
       show.value = d.counts.fresh ? 'new' : 'all';
     }
@@ -71,12 +70,6 @@ function quickPicked(l, row) {
   l.payee_code = row.code;
   l.payee_name = row.name;
   if (row.account_code) l.account_code = row.account_code;
-  l.suggestion.from = 'quick code ' + row.code;
-  spread(l);
-}
-// Coding one line codes the other lines from the same payee that have no code yet.
-function spread(l) {
-  for (const o of fresh.value) if (o !== l && !o.account_code && o.description === l.description) { o.account_code = l.account_code; o.payee_name = l.payee_name; o.payee_code = l.payee_code; }
 }
 // The books' balance after each statement line, as it will be with the lines ticked now. Where everything is
 // in order it equals the bank's balance on that line; the first line where they part is where to look.
@@ -181,7 +174,7 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
   </div>
 
   <template v-else-if="data">
-    <p v-if="data.counts.fresh || data.counts.matched" class="banner info"><b>Preview.</b> Nothing has been added to the books yet. Check the new lines, change the payee, ledger code or date where needed, untick any you do not want, then press Add.</p>
+    <p v-if="data.counts.fresh || data.counts.matched" class="banner info"><b>Preview.</b> Nothing has been added to the books yet. Give each new line its quick code or ledger code (none are filled in for you), change the reference, date or payee where needed, untick any you do not want, then press Add.</p>
     <div class="tiles">
       <div class="card tile"><small>{{ fileName }}</small><b>{{ data.counts.total }} lines</b><small>{{ niceDate(data.from) }} to {{ niceDate(data.to) }}</small></div>
       <div class="card tile"><small>Already in the books</small><b>{{ data.counts.done + data.counts.matched }}</b><small>{{ data.counts.matched ? data.counts.matched + ' to tick off' : 'all ticked off' }}</small></div>
@@ -222,9 +215,8 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
               <td class="num bal" :class="{ off: running.get(l.fp)?.differs }" :title="running.get(l.fp)?.differs ? 'Differs from the bank balance on this line' : ''">{{ money(running.get(l.fp)?.books) }}</td>
               <template v-if="l.status === 'new'">
                 <td class="nowrap"><QuickCodePicker :model-value="l.payee_code || ''" :disabled="!l.include" @update:model-value="l.payee_code = $event || null" @pick="quickPicked(l, $event)" /></td>
-                <td class="payee"><input v-model="l.payee_name" :disabled="!l.include" @change="spread(l)" aria-label="Payee" />
-                  <small :title="l.suggestion.from || ''">{{ l.suggestion.from || 'not seen before — choose a code' }}</small></td>
-                <td class="nowrap"><AccountPicker v-model="l.account_code" :disabled="!l.include" :need="l.include && !known(l.account_code)" width="62px" @change="spread(l)" /></td>
+                <td class="payee"><input v-model="l.payee_name" :disabled="!l.include" aria-label="Payee" /></td>
+                <td class="nowrap"><AccountPicker v-model="l.account_code" :disabled="!l.include" :need="l.include && !known(l.account_code)" width="62px" /></td>
               </template>
               <template v-else>
                 <td>{{ l.transaction.payee_code }}</td>
