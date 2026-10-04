@@ -46,7 +46,6 @@ async function run() {
       for (const l of d.lines) {
         l.bank_date = l.date;                     // the bank's date, kept when the entry's date is edited
         if (l.status !== 'new') continue;
-        l.include = true;
         l.parts = [newPart(l)];
       }
       show.value = d.counts.fresh ? 'new' : 'all';
@@ -58,8 +57,8 @@ async function run() {
 function reset() { data.value = null; text.value = ''; fileName.value = ''; mapping.value = null; error.value = null; confirming.value = false; }
 
 const fresh = computed(() => (data.value?.lines || []).filter(l => l.status === 'new'));
-const chosen = computed(() => fresh.value.filter(l => l.include));
-const leftOut = computed(() => fresh.value.filter(l => !l.include));
+// Every new line on the statement is added: there is no leaving one out.
+const chosen = fresh;
 const known = code => store.accounts.some(a => a.code === code.trim());
 const badDate = computed(() => chosen.value.filter(l => !isIsoDate(l.date)));
 const toTick = computed(() => data.value.lines.filter(l => l.status === 'matched').length);
@@ -123,8 +122,7 @@ const running = computed(() => {
   const others = d.running.others;
   let cum = 0;
   for (const l of d.lines) {
-    const counts = l.status !== 'new' || l.include;
-    if (counts) cum += l.amount_cents;
+    cum += l.amount_cents;
     const books = base + cum + others.reduce((s, o) => s + (o.date <= l.bank_date ? o.signed_cents : 0), 0);
     out.set(l.fp, { books, differs: l.balance_cents !== null && l.balance_cents !== books });
   }
@@ -175,7 +173,7 @@ const needRef = computed(() => entries.value.filter(e => e.part.refMode === 'man
 // the list). Ctrl+' copies the value from the same column of the row above, as in Access.
 function reviewKey(e) {
   const box = e.target;
-  if (!(box instanceof HTMLInputElement) || box.type === 'checkbox') return;
+  if (!(box instanceof HTMLInputElement)) return;
   const cell = box.closest('td[data-col]');
   const row = box.closest('tr[data-fp]');
   if (!cell || !row) return;
@@ -209,7 +207,6 @@ function reviewKey(e) {
     } else here.part[col] = above.part[col];
   }
 }
-function tickAll(on) { for (const l of fresh.value) l.include = on; }
 
 // What the books will read at the statement's closing date once the ticked lines are added.
 const closing = computed(() => {
@@ -225,7 +222,7 @@ function review() {
   if (splitBad.value.length) { const l = splitBad.value[0]; error.value = `The split of ${l.description} (${money(Math.abs(l.amount_cents))}) does not work: each part needs an amount, and together they must come to less than the line, leaving something for the first part.`; return; }
   if (uncoded.value.length) { error.value = `${plural(uncoded.value.length, 'entry needs', 'entries need')} a ledger code.`; return; }
   if (needRef.value.length) { error.value = `${plural(needRef.value.length, 'receipt needs', 'receipts need')} a reference: the invoice number, or type ${prefix.value} for the next bank number.`; return; }
-  if (badDate.value.length) { error.value = 'A ticked line has no date.'; return; }
+  if (badDate.value.length) { error.value = 'A line has no date.'; return; }
   if (clashes.value.size) { error.value = `Reference ${[...refs.value.values()].find(r => clashes.value.has(r.toLowerCase()))} is on more than one entry.`; return; }
   confirming.value = true;
 }
@@ -277,11 +274,11 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
   </div>
 
   <template v-else-if="data">
-    <p v-if="data.counts.fresh || data.counts.matched" class="banner info"><b>Preview.</b> Nothing has been added to the books yet. Give each new line its quick code or ledger code (none are filled in for you) and each receipt its invoice number as the reference; split a line that covers more than one thing; untick any you do not want; then press Add.</p>
+    <p v-if="data.counts.fresh || data.counts.matched" class="banner info"><b>Preview.</b> Nothing has been added to the books yet. Give each new line its quick code or ledger code (none are filled in for you) and each receipt its invoice number as the reference; split a line that covers more than one thing; then press Add. Every new line is added.</p>
     <div class="tiles">
       <div class="card tile"><small>{{ fileName }}</small><b>{{ data.counts.total }} lines</b><small>{{ niceDate(data.from) }} to {{ niceDate(data.to) }}</small></div>
       <div class="card tile"><small>Already in the books</small><b>{{ data.counts.done + data.counts.matched }}</b><small>{{ data.counts.matched ? data.counts.matched + ' to tick off' : 'all ticked off' }}</small></div>
-      <div class="card tile" :class="{ hot: data.counts.fresh }"><small>New, to add</small><b>{{ data.counts.fresh }}</b><small>{{ chosen.length }} ticked{{ entries.length > chosen.length ? ', ' + entries.length + ' entries' : '' }}</small></div>
+      <div class="card tile" :class="{ hot: data.counts.fresh }"><small>New, to add</small><b>{{ data.counts.fresh }}</b><small>{{ entries.length > chosen.length ? entries.length + ' entries after splitting' : (chosen.length ? 'all will be added' : 'nothing to add') }}</small></div>
       <div class="card tile" :class="{ warn: data.counts.book_only }"><small>In the books, not on the statement</small><b>{{ data.counts.book_only }}</b><small>{{ data.counts.book_only ? 'listed below' : 'none' }}</small></div>
       <div v-if="closing" class="card tile" :class="closing.diff === 0 ? 'good' : 'warn'">
         <small>Statement balance {{ niceDate(closing.date) }}</small><b>{{ dollars(closing.balance_cents) }}</b>
@@ -292,7 +289,6 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
     <div class="card flush">
       <div class="bar">
         <div class="seg"><button :class="{ on: show === 'new' }" @click="show = 'new'">New lines ({{ data.counts.fresh }})</button><button :class="{ on: show === 'all' }" @click="show = 'all'">Whole statement</button></div>
-        <button v-if="fresh.length" class="small" @click="tickAll(true)">Tick all</button><button v-if="fresh.length" class="small" @click="tickAll(false)">Untick all</button>
         <span v-if="fresh.length" class="muted keys"><kbd>↑</kbd> <kbd>↓</kbd> move between lines · <kbd>Ctrl</kbd>+<kbd>'</kbd> copies the value above · <kbd>F4</kbd> opens a list</span>
         <span class="grow"></span>
         <span v-if="needRef.length" class="pill warn">{{ needRef.length }} need a reference</span>
@@ -301,14 +297,13 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
           {{ entries.length ? `Add ${plural(entries.length, 'entry', 'entries')}…` : 'Tick off matched entries…' }}</button>
       </div>
       <div v-if="visible.length" class="fit"><table class="review" @keydown.capture="reviewKey">
-        <thead><tr><th></th><th>Date</th><th>Reference</th><th>Bank description</th><th class="num">Payment</th><th class="num">Receipt</th><th v-if="hasBankBalance" class="num">Bank bal.</th><th class="num">Books bal.</th><th>Quick code</th><th>Payee in the books</th><th>Ledger code</th><th></th></tr></thead>
+        <thead><tr><th>Date</th><th>Reference</th><th>Bank description</th><th class="num">Payment</th><th class="num">Receipt</th><th v-if="hasBankBalance" class="num">Bank bal.</th><th class="num">Books bal.</th><th>Quick code</th><th>Payee in the books</th><th>Ledger code</th><th></th></tr></thead>
         <tbody>
           <template v-for="l in visible" :key="l.fp">
-            <tr :data-fp="l.fp" :class="{ dim: l.status !== 'new' || !l.include, joined: l.parts?.length > 1 }">
-              <td class="tick"><input v-if="l.status === 'new'" type="checkbox" v-model="l.include" :aria-label="'Add ' + l.description" /></td>
-              <td class="nowrap" data-col="date"><input v-if="l.status === 'new' && l.include" type="date" v-model="l.date" aria-label="Date" /><template v-else>{{ niceDate(l.date) }}</template></td>
+            <tr :data-fp="l.fp" :class="{ dim: l.status !== 'new', joined: l.parts?.length > 1 }">
+              <td class="nowrap" data-col="date"><input v-if="l.status === 'new'" type="date" v-model="l.date" aria-label="Date" /><template v-else>{{ niceDate(l.date) }}</template></td>
               <td class="nowrap" data-col="reference">
-                <input v-if="l.status === 'new' && l.include" class="ref" :class="{ need: clash(l.fp) || (l.parts[0].refMode === 'manual' && !l.parts[0].ref) }" :value="refs.get(l.fp) || ''" :placeholder="wantsInvoice(l) ? 'invoice no.' : 'automatic'" aria-label="Reference" @change="setReference(l, l.parts[0], $event.target.value)" />
+                <input v-if="l.status === 'new'" class="ref" :class="{ need: clash(l.fp) || (l.parts[0].refMode === 'manual' && !l.parts[0].ref) }" :value="refs.get(l.fp) || ''" :placeholder="wantsInvoice(l) ? 'invoice no.' : 'automatic'" aria-label="Reference" @change="setReference(l, l.parts[0], $event.target.value)" />
                 <template v-else-if="l.transaction">{{ l.transaction.reference }}</template>
               </td>
               <td class="desc" :title="l.description + ' ' + l.detail">{{ l.description }} <small>{{ l.detail }}</small></td>
@@ -329,10 +324,10 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
                 <td class="num bal" :class="{ off: running.get(l.fp)?.differs }" :title="running.get(l.fp)?.differs ? 'Differs from the bank balance on this line' : ''">{{ money(running.get(l.fp)?.books) }}</td>
               </template>
               <template v-if="l.status === 'new'">
-                <td class="nowrap" data-col="payee_code"><QuickCodePicker :model-value="l.parts[0].payee_code || ''" :open-on-focus="false" :disabled="!l.include" @update:model-value="l.parts[0].payee_code = $event || null" @pick="quickPicked(l.parts[0], $event)" /></td>
-                <td class="payee" data-col="payee_name"><input v-model="l.parts[0].payee_name" :disabled="!l.include" aria-label="Payee" /></td>
-                <td class="nowrap" data-col="account_code"><AccountPicker v-model="l.parts[0].account_code" :open-on-focus="false" :disabled="!l.include" :need="l.include && !known(l.parts[0].account_code)" width="62px" /></td>
-                <td class="act"><button v-if="l.include" class="small" title="Split this line into separate amounts" @click="split(l)">Split</button></td>
+                <td class="nowrap" data-col="payee_code"><QuickCodePicker :model-value="l.parts[0].payee_code || ''" :open-on-focus="false" @update:model-value="l.parts[0].payee_code = $event || null" @pick="quickPicked(l.parts[0], $event)" /></td>
+                <td class="payee" data-col="payee_name"><input v-model="l.parts[0].payee_name" aria-label="Payee" /></td>
+                <td class="nowrap" data-col="account_code"><AccountPicker v-model="l.parts[0].account_code" :open-on-focus="false" :need="!known(l.parts[0].account_code)" width="62px" /></td>
+                <td class="act"><button class="small" title="Split this line into separate amounts" @click="split(l)">Split</button></td>
               </template>
               <template v-else>
                 <td>{{ l.transaction.payee_code }}</td>
@@ -342,18 +337,17 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
               </template>
             </tr>
             <template v-if="l.status === 'new'">
-              <tr v-for="(p, i) in l.parts.slice(1)" :key="p.key" :data-fp="idOf(l, p)" class="part" :class="{ joined: i < l.parts.length - 2, dim: !l.include }">
-                <td></td>
+              <tr v-for="(p, i) in l.parts.slice(1)" :key="p.key" :data-fp="idOf(l, p)" class="part" :class="{ joined: i < l.parts.length - 2 }">
                 <td class="nowrap"><input type="date" :value="l.date" disabled aria-label="Date (set on the first row)" title="Change the date on the first row of this line" /></td>
-                <td class="nowrap" data-col="reference"><input class="ref" :class="{ need: l.include && (clash(idOf(l, p)) || (p.refMode === 'manual' && !p.ref)) }" :value="refs.get(idOf(l, p)) || ''" :placeholder="wantsInvoice(l) ? 'invoice no.' : 'automatic'" aria-label="Reference" :disabled="!l.include" @change="setReference(l, p, $event.target.value)" /></td>
+                <td class="nowrap" data-col="reference"><input class="ref" :class="{ need: (clash(idOf(l, p)) || (p.refMode === 'manual' && !p.ref)) }" :value="refs.get(idOf(l, p)) || ''" :placeholder="wantsInvoice(l) ? 'invoice no.' : 'automatic'" aria-label="Reference" @change="setReference(l, p, $event.target.value)" /></td>
                 <td class="desc" :title="l.description + ' ' + l.detail + ' - part ' + (i + 2) + ' of ' + l.parts.length + ', line total ' + money(Math.abs(l.amount_cents))">{{ l.description }} <small>(split) {{ l.detail }}</small></td>
-                <td class="num" :data-col="l.amount_cents < 0 ? 'amount' : null"><input v-if="l.amount_cents < 0" v-model="p.amount" class="num amt" :class="{ need: l.include && partCents(l, p) === null }" inputmode="decimal" placeholder="0.00" aria-label="Amount of this part" :disabled="!l.include" @change="tidyAmount(p)" /></td>
-                <td class="num" :data-col="l.amount_cents > 0 ? 'amount' : null"><input v-if="l.amount_cents > 0" v-model="p.amount" class="num amt" :class="{ need: l.include && partCents(l, p) === null }" inputmode="decimal" placeholder="0.00" aria-label="Amount of this part" :disabled="!l.include" @change="tidyAmount(p)" /></td>
+                <td class="num" :data-col="l.amount_cents < 0 ? 'amount' : null"><input v-if="l.amount_cents < 0" v-model="p.amount" class="num amt" :class="{ need: partCents(l, p) === null }" inputmode="decimal" placeholder="0.00" aria-label="Amount of this part" @change="tidyAmount(p)" /></td>
+                <td class="num" :data-col="l.amount_cents > 0 ? 'amount' : null"><input v-if="l.amount_cents > 0" v-model="p.amount" class="num amt" :class="{ need: partCents(l, p) === null }" inputmode="decimal" placeholder="0.00" aria-label="Amount of this part" @change="tidyAmount(p)" /></td>
                 <td v-if="hasBankBalance" class="num muted">{{ p === lastPart(l) && l.balance_cents !== null ? money(l.balance_cents) : '' }}</td>
                 <td class="num bal" :class="{ off: p === lastPart(l) && running.get(l.fp)?.differs }">{{ balanceAfter(l, p) === null ? '' : money(balanceAfter(l, p)) }}</td>
-                <td class="nowrap" data-col="payee_code"><QuickCodePicker :model-value="p.payee_code || ''" :open-on-focus="false" :disabled="!l.include" @update:model-value="p.payee_code = $event || null" @pick="quickPicked(p, $event)" /></td>
-                <td class="payee" data-col="payee_name"><input v-model="p.payee_name" :disabled="!l.include" aria-label="Payee" /></td>
-                <td class="nowrap" data-col="account_code"><AccountPicker v-model="p.account_code" :open-on-focus="false" :disabled="!l.include" :need="l.include && !known(p.account_code)" width="62px" /></td>
+                <td class="nowrap" data-col="payee_code"><QuickCodePicker :model-value="p.payee_code || ''" :open-on-focus="false" @update:model-value="p.payee_code = $event || null" @pick="quickPicked(p, $event)" /></td>
+                <td class="payee" data-col="payee_name"><input v-model="p.payee_name" aria-label="Payee" /></td>
+                <td class="nowrap" data-col="account_code"><AccountPicker v-model="p.account_code" :open-on-focus="false" :need="!known(p.account_code)" width="62px" /></td>
                 <td class="act"><button class="small" title="Remove this part" :aria-label="'Remove part ' + (i + 2)" @click="unsplit(l, p)">Remove</button></td>
               </tr>
             </template>
@@ -383,7 +377,6 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
             <tr><td class="in">payments</td><td class="num">{{ money(total(-1)) }}</td></tr>
             <tr><td class="in">receipts</td><td class="num">{{ money(total(1)) }}</td></tr>
             <tr><td>Entries already in the books to tick off</td><td class="num">{{ toTick }}</td></tr>
-            <tr v-if="leftOut.length"><td>Lines unticked (not added)</td><td class="num">{{ leftOut.length }}</td></tr>
             <tr v-if="closing"><td>Bank balance in the books at {{ niceDate(closing.date) }} afterwards</td><td class="num">{{ money(closing.after) }}</td></tr>
             <tr v-if="closing"><td>Statement balance</td><td class="num">{{ money(closing.balance_cents) }} <span class="pill" :class="closing.diff === 0 ? 'ok' : 'warn'">{{ closing.diff === 0 ? 'agrees' : 'out by ' + money(Math.abs(closing.diff)) }}</span></td></tr>
           </tbody>
@@ -421,18 +414,17 @@ td.off { color: var(--amber); font-weight: 650; }
 .keys { font-size: 12px; }
 .keys kbd { font: inherit; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; background: var(--soft); }
 .review th, .review td { padding: 4px 6px; }
+.review th:first-child, .review td:first-child { padding-left: 12px; }
 /* Every cell's first line is one 26px band - the height of the boxes - so dates, amounts, balances, boxes and
    tick boxes sit on the same line across the row. */
 .review td { vertical-align: top; line-height: 26px; }
 .review td small { line-height: inherit; }
-.review input:not([type="checkbox"]) { height: 26px; padding: 0 6px; line-height: normal; vertical-align: top; font-size: 12.5px; }
-.review input[type="checkbox"] { width: 15px; height: 15px; margin: 0; vertical-align: middle; position: relative; top: -2px; }
+.review input { height: 26px; padding: 0 6px; line-height: normal; vertical-align: top; font-size: 12.5px; }
 .review :deep(.picker) { height: 26px; vertical-align: top; gap: 5px; }
 .review :deep(.picker input) { height: 26px; padding: 0 6px; font-size: 12.5px; }
 .review :deep(.picker-name) { line-height: 26px; max-width: 92px; }
 .review .pill { line-height: 1.5; }
 .review td.payee .pill { line-height: 14px; font-size: 11px; padding: 0 6px; }
-.review td.tick { width: 22px; padding-right: 0; }
 .review input.ref { width: 84px; }
 .review input.amt { width: 84px; margin-right: -7px; font-variant-numeric: tabular-nums; }
 .review input.need { border-color: var(--amber); box-shadow: 0 0 0 2px var(--amber-soft); }

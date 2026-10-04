@@ -5,6 +5,9 @@ the person using it, which objects changed, and which BUGS_AND_IMPROVEMENTS item
 
 ## Application 0.5.1 - 2026-10-05 (prototype)
 
+- Tick boxes removed from the import preview (Craig, 5 Oct 2026): every new line on the statement is added.
+  A split line shows the amount left on its first row as the split amounts are typed; split rows carry the
+  date, the bank description with "(split)", formatted amounts and a running balance.
 - Removed the "possibly already entered" question from the bank import. A statement line is either matched
   to an entry of the same amount within 4 days (and ticked off) or it is new. The server's last check
   against doubling up now uses the same 4 days.
