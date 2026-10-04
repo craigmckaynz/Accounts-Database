@@ -78,18 +78,23 @@ const splitBad = computed(() => chosen.value.filter(l => l.parts.length > 1 && l
 function split(l) { l.parts.push(newPart(l)); }
 // A typed amount is shown the way the other figures are: 10000 becomes 10,000.00.
 function tidyAmount(p) { const c = toCents(p.amount); if (c !== null && c > 0) p.amount = money(c); }
-const isSplit = l => l.status === 'new' && l.include && l.parts.length > 1;
+const isSplit = l => l.status === 'new' && l.parts.length > 1;
+// What a part shows while the split is being typed. A split amount not yet entered counts as nothing, so the
+// first row starts at the line's full amount and comes down as each split amount goes in. (partCents above is
+// the strict version used when adding: there every part must have a real amount.)
+function shownCents(l, p) {
+  const typed = q => { const c = toCents(q.amount); return c !== null && c > 0 ? c : 0; };
+  return p === l.parts[0] ? Math.abs(l.amount_cents) - l.parts.slice(1).reduce((s, q) => s + typed(q), 0) : typed(p);
+}
 const lastPart = l => l.parts[l.parts.length - 1];
 // The books balance after each part: the parts of a line take the balance from where the line before left it
-// to where the whole line leaves it. Null while an amount is missing or the parts do not fit the line.
+// to where the whole line leaves it.
 function balanceAfter(l, p) {
   const end = running.value.get(l.fp)?.books;
   if (end === undefined) return null;
   let at = end - l.amount_cents;
   for (const q of l.parts) {
-    const c = partCents(l, q);
-    if (c === null) return null;
-    at += Math.sign(l.amount_cents) * c;
+    at += Math.sign(l.amount_cents) * shownCents(l, q);
     if (q === p) return at;
   }
   return null;
@@ -299,7 +304,7 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
         <thead><tr><th></th><th>Date</th><th>Reference</th><th>Bank description</th><th class="num">Payment</th><th class="num">Receipt</th><th v-if="hasBankBalance" class="num">Bank bal.</th><th class="num">Books bal.</th><th>Quick code</th><th>Payee in the books</th><th>Ledger code</th><th></th></tr></thead>
         <tbody>
           <template v-for="l in visible" :key="l.fp">
-            <tr :data-fp="l.fp" :class="{ dim: l.status !== 'new' || !l.include, joined: l.include && l.parts?.length > 1 }">
+            <tr :data-fp="l.fp" :class="{ dim: l.status !== 'new' || !l.include, joined: l.parts?.length > 1 }">
               <td class="tick"><input v-if="l.status === 'new'" type="checkbox" v-model="l.include" :aria-label="'Add ' + l.description" /></td>
               <td class="nowrap" data-col="date"><input v-if="l.status === 'new' && l.include" type="date" v-model="l.date" aria-label="Date" /><template v-else>{{ niceDate(l.date) }}</template></td>
               <td class="nowrap" data-col="reference">
@@ -307,9 +312,9 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
                 <template v-else-if="l.transaction">{{ l.transaction.reference }}</template>
               </td>
               <td class="desc" :title="l.description + ' ' + l.detail">{{ l.description }} <small>{{ l.detail }}</small></td>
-              <template v-if="l.status === 'new' && l.include && l.parts.length > 1">
-                <td class="num" :class="{ off: partCents(l, l.parts[0]) === null }">{{ l.amount_cents < 0 ? (partCents(l, l.parts[0]) === null ? '?' : money(partCents(l, l.parts[0]))) : '' }}</td>
-                <td class="num" :class="{ off: partCents(l, l.parts[0]) === null }">{{ l.amount_cents > 0 ? (partCents(l, l.parts[0]) === null ? '?' : money(partCents(l, l.parts[0]))) : '' }}</td>
+              <template v-if="isSplit(l)">
+                <td class="num" :class="{ off: shownCents(l, l.parts[0]) <= 0 }" :title="shownCents(l, l.parts[0]) <= 0 ? 'The split amounts come to the whole line or more' : ''">{{ l.amount_cents < 0 ? money(shownCents(l, l.parts[0])) : '' }}</td>
+                <td class="num" :class="{ off: shownCents(l, l.parts[0]) <= 0 }" :title="shownCents(l, l.parts[0]) <= 0 ? 'The split amounts come to the whole line or more' : ''">{{ l.amount_cents > 0 ? money(shownCents(l, l.parts[0])) : '' }}</td>
               </template>
               <template v-else>
                 <td class="num">{{ l.amount_cents < 0 ? money(-l.amount_cents) : '' }}</td>
@@ -336,19 +341,19 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
                 <td></td>
               </template>
             </tr>
-            <template v-if="l.status === 'new' && l.include">
-              <tr v-for="(p, i) in l.parts.slice(1)" :key="p.key" :data-fp="idOf(l, p)" class="part" :class="{ joined: i < l.parts.length - 2 }">
-                <td></td>
+            <template v-if="l.status === 'new'">
+              <tr v-for="(p, i) in l.parts.slice(1)" :key="p.key" :data-fp="idOf(l, p)" class="part" :class="{ joined: i < l.parts.length - 2, dim: !l.include }">
+                <td class="tick"><input type="checkbox" v-model="l.include" :aria-label="'Add ' + l.description + ' (all its parts)'" title="Ticks or unticks the whole line, all its parts together" /></td>
                 <td class="nowrap"><input type="date" :value="l.date" disabled aria-label="Date (set on the first row)" title="Change the date on the first row of this line" /></td>
-                <td class="nowrap" data-col="reference"><input class="ref" :class="{ need: clash(idOf(l, p)) || (p.refMode === 'manual' && !p.ref) }" :value="refs.get(idOf(l, p)) || ''" :placeholder="wantsInvoice(l) ? 'invoice no.' : 'automatic'" aria-label="Reference" @change="setReference(l, p, $event.target.value)" /></td>
+                <td class="nowrap" data-col="reference"><input class="ref" :class="{ need: l.include && (clash(idOf(l, p)) || (p.refMode === 'manual' && !p.ref)) }" :value="refs.get(idOf(l, p)) || ''" :placeholder="wantsInvoice(l) ? 'invoice no.' : 'automatic'" aria-label="Reference" :disabled="!l.include" @change="setReference(l, p, $event.target.value)" /></td>
                 <td class="desc" :title="l.description + ' ' + l.detail + ' - part ' + (i + 2) + ' of ' + l.parts.length + ', line total ' + money(Math.abs(l.amount_cents))">{{ l.description }} <small>(split) {{ l.detail }}</small></td>
-                <td class="num" :data-col="l.amount_cents < 0 ? 'amount' : null"><input v-if="l.amount_cents < 0" v-model="p.amount" class="num amt" :class="{ need: partCents(l, p) === null }" inputmode="decimal" placeholder="0.00" aria-label="Amount of this part" @change="tidyAmount(p)" /></td>
-                <td class="num" :data-col="l.amount_cents > 0 ? 'amount' : null"><input v-if="l.amount_cents > 0" v-model="p.amount" class="num amt" :class="{ need: partCents(l, p) === null }" inputmode="decimal" placeholder="0.00" aria-label="Amount of this part" @change="tidyAmount(p)" /></td>
+                <td class="num" :data-col="l.amount_cents < 0 ? 'amount' : null"><input v-if="l.amount_cents < 0" v-model="p.amount" class="num amt" :class="{ need: l.include && partCents(l, p) === null }" inputmode="decimal" placeholder="0.00" aria-label="Amount of this part" :disabled="!l.include" @change="tidyAmount(p)" /></td>
+                <td class="num" :data-col="l.amount_cents > 0 ? 'amount' : null"><input v-if="l.amount_cents > 0" v-model="p.amount" class="num amt" :class="{ need: l.include && partCents(l, p) === null }" inputmode="decimal" placeholder="0.00" aria-label="Amount of this part" :disabled="!l.include" @change="tidyAmount(p)" /></td>
                 <td v-if="hasBankBalance" class="num muted">{{ p === lastPart(l) && l.balance_cents !== null ? money(l.balance_cents) : '' }}</td>
                 <td class="num bal" :class="{ off: p === lastPart(l) && running.get(l.fp)?.differs }">{{ balanceAfter(l, p) === null ? '' : money(balanceAfter(l, p)) }}</td>
-                <td class="nowrap" data-col="payee_code"><QuickCodePicker :model-value="p.payee_code || ''" :open-on-focus="false" @update:model-value="p.payee_code = $event || null" @pick="quickPicked(p, $event)" /></td>
-                <td class="payee" data-col="payee_name"><input v-model="p.payee_name" aria-label="Payee" /></td>
-                <td class="nowrap" data-col="account_code"><AccountPicker v-model="p.account_code" :open-on-focus="false" :need="!known(p.account_code)" width="62px" /></td>
+                <td class="nowrap" data-col="payee_code"><QuickCodePicker :model-value="p.payee_code || ''" :open-on-focus="false" :disabled="!l.include" @update:model-value="p.payee_code = $event || null" @pick="quickPicked(p, $event)" /></td>
+                <td class="payee" data-col="payee_name"><input v-model="p.payee_name" :disabled="!l.include" aria-label="Payee" /></td>
+                <td class="nowrap" data-col="account_code"><AccountPicker v-model="p.account_code" :open-on-focus="false" :disabled="!l.include" :need="l.include && !known(p.account_code)" width="62px" /></td>
                 <td class="act"><button class="small" title="Remove this part" :aria-label="'Remove part ' + (i + 2)" @click="unsplit(l, p)">Remove</button></td>
               </tr>
             </template>
