@@ -34,6 +34,7 @@ async function run() {
         l.bank_date_or_date = l.date;             // the bank's date, kept when the entry's date is edited
         if (l.status !== 'new') continue;
         l.bank_date = l.date;
+        l.reference = '';                         // empty = numbered automatically
         l.decision = null;                        // for a possible duplicate: 'same' or 'separate'
         l.include = !l.possible;                  // a possible duplicate is held back until decided
         l.payee_name = l.suggestion.payee_name;
@@ -97,6 +98,30 @@ const running = computed(() => {
   }
   return out;
 });
+// References, as the Access form offered them: the bank prefix, the year and month of the entry's date,
+// and the next number in that month (bk26/08-01, -02 ...). The ticked lines are numbered in date order,
+// carrying on from the last one in the books; a reference typed over is kept as typed.
+const refs = computed(() => {
+  const out = new Map();
+  const next = {};
+  for (const l of chosen.value.slice().sort((a, b) => a.date.localeCompare(b.date) || a.n - b.n)) {
+    if (l.reference) { out.set(l.fp, l.reference); continue; }
+    const month = (l.date || '').slice(0, 7);
+    const start = data.value.next_refs?.[month];
+    if (!start) continue;                           // outside the months known here: numbered when added
+    const cut = start.lastIndexOf('-') + 1;
+    if (!(month in next)) next[month] = Number(start.slice(cut));
+    let ref;
+    do { ref = start.slice(0, cut) + String(next[month]++).padStart(2, '0'); } while (chosen.value.some(o => o.reference === ref));
+    out.set(l.fp, ref);
+  }
+  return out;
+});
+function setReference(l, value) {
+  const v = value.trim();
+  l.reference = v === refs.value.get(l.fp) ? l.reference : v;
+}
+const clashes = computed(() => { const seen = new Set(), dup = new Set(); for (const r of refs.value.values()) { if (seen.has(r)) dup.add(r); seen.add(r); } return dup; });
 function tickAll(on) { for (const l of fresh.value) if (!l.possible) l.include = on; }
 
 // What the books will read at the statement's closing date once the ticked lines are added.
@@ -111,6 +136,7 @@ function review() {
   error.value = null;
   if (uncoded.value.length) { error.value = `${uncoded.value.length} ticked ${uncoded.value.length === 1 ? 'line needs' : 'lines need'} a ledger code.`; return; }
   if (badDate.value.length) { error.value = 'A ticked line has no date.'; return; }
+  if (clashes.value.size) { error.value = `Reference ${[...clashes.value][0]} is on more than one line.`; return; }
   confirming.value = true;
 }
 async function importNow() {
@@ -118,7 +144,7 @@ async function importNow() {
   try {
     const d = data.value;
     const r = await api('POST', '/api/bank/import', {
-      add: chosen.value.map(l => ({ n: l.n, fp: l.fp, date: l.date, bank_date: l.bank_date, amount_cents: l.amount_cents, description: l.description, payee_name: l.payee_name.trim(), payee_code: l.payee_code, account_code: l.account_code.trim(), allow_duplicate: l.decision === 'separate' })),
+      add: chosen.value.map(l => ({ n: l.n, fp: l.fp, reference: refs.value.get(l.fp) || '', date: l.date, bank_date: l.bank_date, amount_cents: l.amount_cents, description: l.description, payee_name: l.payee_name.trim(), payee_code: l.payee_code, account_code: l.account_code.trim(), allow_duplicate: l.decision === 'separate' })),
       matched: d.lines.filter(l => l.status === 'matched').map(l => ({ fp: l.fp, transaction_id: l.transaction.id })).concat(same.value.map(l => ({ fp: l.fp, transaction_id: l.possible.id }))),
       checkpoint: d.closing ? { date: d.closing.date, balance_cents: d.closing.balance_cents } : null
     });
@@ -179,12 +205,16 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
           {{ chosen.length ? `Add ${chosen.length} ${chosen.length === 1 ? 'entry' : 'entries'}…` : 'Tick off matched entries…' }}</button>
       </div>
       <div v-if="visible.length" class="fit"><table class="review">
-        <thead><tr><th></th><th>Date</th><th>Bank description</th><th class="num">Payment</th><th class="num">Receipt</th><th v-if="hasBankBalance" class="num">Bank bal.</th><th class="num">Books bal.</th><th>Quick code</th><th>Payee in the books</th><th>Ledger code</th></tr></thead>
+        <thead><tr><th></th><th>Date</th><th>Reference</th><th>Bank description</th><th class="num">Payment</th><th class="num">Receipt</th><th v-if="hasBankBalance" class="num">Bank bal.</th><th class="num">Books bal.</th><th>Quick code</th><th>Payee in the books</th><th>Ledger code</th></tr></thead>
         <tbody>
           <template v-for="l in visible" :key="l.fp">
             <tr :class="{ dim: l.status !== 'new' || !l.include, joined: l.possible }">
               <td class="tick"><input v-if="l.status === 'new' && !l.possible" type="checkbox" v-model="l.include" :aria-label="'Add ' + l.description" /></td>
               <td class="nowrap"><input v-if="l.status === 'new' && l.include" type="date" v-model="l.date" aria-label="Date" /><template v-else>{{ niceDate(l.date) }}</template></td>
+              <td class="nowrap">
+                <input v-if="l.status === 'new' && l.include" class="ref" :class="{ need: clashes.has(refs.get(l.fp)) }" :value="refs.get(l.fp) || ''" placeholder="automatic" aria-label="Reference" @change="setReference(l, $event.target.value)" />
+                <template v-else-if="l.transaction">{{ l.transaction.reference }}</template>
+              </td>
               <td class="desc" :title="l.description + ' ' + l.detail">{{ l.description }} <small>{{ l.detail }}</small></td>
               <td class="num">{{ l.amount_cents < 0 ? money(-l.amount_cents) : '' }}</td>
               <td class="num">{{ l.amount_cents > 0 ? money(l.amount_cents) : '' }}</td>
@@ -198,13 +228,13 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
               </template>
               <template v-else>
                 <td>{{ l.transaction.payee_code }}</td>
-                <td class="payee">{{ l.transaction.payee_name }}<small><span class="pill ok">In the books</span> {{ l.transaction.reference }}{{ l.transaction.date !== l.date ? ' · dated ' + niceDate(l.transaction.date) : '' }}</small></td>
+                <td class="payee">{{ l.transaction.payee_name }}<small><span class="pill ok">In the books</span>{{ l.transaction.date !== l.date ? ' dated ' + niceDate(l.transaction.date) : '' }}</small></td>
                 <td class="nowrap">{{ l.transaction.account_code }} <small>{{ accountName(l.transaction.account_code) }}</small></td>
               </template>
             </tr>
             <tr v-if="l.possible" class="ask">
               <td></td>
-              <td :colspan="hasBankBalance ? 9 : 8">
+              <td :colspan="hasBankBalance ? 10 : 9">
                 <span class="pill warn">Possibly already entered</span>
                 The books have <b>{{ l.possible.reference }}</b> {{ l.possible.payee_name }} for the same amount, dated {{ niceDate(l.possible.date) }}.
                 <span class="seg" style="margin-left: 8px"><button :class="{ on: l.decision === 'same' }" @click="decide(l, 'same')">Same entry — don’t add</button><button :class="{ on: l.decision === 'separate' }" @click="decide(l, 'separate')">Separate — add it</button></span>
@@ -285,9 +315,11 @@ td.off { color: var(--amber); font-weight: 650; }
 .review .pill { line-height: 1.5; }
 .review td.payee .pill { line-height: 14px; font-size: 11px; padding: 0 6px; }
 .review td.tick { width: 22px; padding-right: 0; }
-.review td.desc { max-width: 165px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.review td.payee { min-width: 125px; max-width: 175px; }
-.review :deep(.picker-name) { max-width: 112px; }
+.review input.ref { width: 84px; }
+.review input.need { border-color: var(--amber); box-shadow: 0 0 0 2px var(--amber-soft); }
+.review td.desc { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.review td.payee { min-width: 120px; max-width: 165px; }
+.review :deep(.picker-name) { max-width: 100px; }
 .review :deep(.picker) { gap: 5px; }
 .review td.payee input { width: 100%; display: block; }
 .review td.payee small { display: block; line-height: 15px; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

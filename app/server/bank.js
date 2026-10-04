@@ -4,7 +4,7 @@
 // Banks disagree about column names, order and date formats, so the columns are worked out from the header
 // row (or from the data when there is none) and can be overridden from the screen.
 import { inTransaction } from './db.js';
-import { createTransaction, bankBalance, UserError } from './ledger.js';
+import { createTransaction, bankBalance, nextReference, UserError } from './ledger.js';
 import { isIsoDate, addDays, todayIso } from '../shared/money.js';
 
 // ---- reading the file --------------------------------------------------------------------------------
@@ -353,7 +353,16 @@ export function analyse(db, lines) {
     base_cents: bankBalance(db, addDays(first, -1)) - usedEarly,
     others: books.filter(t => t.date >= first && t.date <= last && !used.has(t.id) && t.amount_cents).map(t => ({ id: t.id, date: t.date, signed_cents: signedOf(t) }))
   };
+  // The next free reference in each month the statement touches (and the months either side, in case a date
+  // is edited across a month end), e.g. { "2026-10": "bk26/10-05" }. The preview numbers the new lines from these.
+  const nextRefs = {};
+  for (let d = new Date(first.slice(0, 7) + '-01T00:00:00Z'), i = -1; ; i++) {
+    const m = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + i, 1)).toISOString().slice(0, 7);
+    nextRefs[m] = nextReference(db, m + '-01');
+    if (m > last.slice(0, 7)) break;
+  }
   return {
+    next_refs: nextRefs,
     from: first, to: last, lines: out, book_only: bookOnly, closing, running,
     counts: { total: out.length, done: out.filter(l => l.status === 'done').length, matched: out.filter(l => l.status === 'matched').length, fresh: out.filter(l => l.status === 'new').length, possible: out.filter(l => l.possible).length, book_only: bookOnly.length }
   };
@@ -392,7 +401,7 @@ export function commit(db, { add = [], matched = [], checkpoint = null }) {
       if (dup) throw new UserError(`${bankDate} ${l.payee_name || l.description}: the books already have ${dup.reference} for the same amount, dated ${dup.date}. Nothing was added. Mark the line as that entry, or confirm it is a separate transaction.`);
       let t;
       try {
-        t = createTransaction(db, { date: l.date, type: l.amount_cents > 0 ? 'R' : 'P', amount_cents: Math.abs(l.amount_cents), payee_name: l.payee_name, payee_code: l.payee_code || null, account_code: l.account_code });
+        t = createTransaction(db, { reference: typeof l.reference === 'string' ? l.reference.trim() : '', date: l.date, type: l.amount_cents > 0 ? 'R' : 'P', amount_cents: Math.abs(l.amount_cents), payee_name: l.payee_name, payee_code: l.payee_code || null, account_code: l.account_code });
       } catch (e) {
         if (e instanceof UserError) throw new UserError(`${l.date} ${l.payee_name || l.description}: ${e.message}`);
         throw e;

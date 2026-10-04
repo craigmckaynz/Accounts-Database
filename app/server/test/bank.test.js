@@ -225,3 +225,19 @@ test('a shared town or a look-alike word is not a match', () => {
   assert.equal(bestMatch(h, line('Gull Waihi', -14177)).payee.account_code, '270');
   assert.equal(bestMatch(h, line('Gull Napier', -6000)).payee.account_code, '270');   // same merchant, another town
 });
+
+test('references: the preview gives the next number for each month, and the import uses the ones it is sent', () => {
+  const db = fresh();
+  ledger.createTransaction(db, { date: '2026-07-01', type: 'P', amount_cents: 100, account_code: '270', payee_name: 'A' });   // bk26/07-01
+  ledger.createTransaction(db, { date: '2026-07-02', type: 'P', amount_cents: 200, account_code: '270', payee_name: 'B' });   // bk26/07-02
+  const p = preview(db, ['Date,Amount,Payee', '30/07/2026,-11.00,SHOP ONE', '31/07/2026,-12.00,SHOP TWO', '01/08/2026,-13.00,SHOP THREE'].join('\n'));
+  assert.equal(p.next_refs['2026-07'], 'bk26/07-03');
+  assert.equal(p.next_refs['2026-08'], 'bk26/08-01');
+  const add = p.lines.map((l, i) => ({ ...l, bank_date: l.date, payee_name: l.description, account_code: '270', reference: ['bk26/07-03', 'PC-17', ''][i] }));
+  commit(db, { add });
+  const refs = db.prepare('SELECT reference FROM transactions WHERE bank_ref IS NOT NULL ORDER BY date').all().map(r => r.reference);
+  assert.deepEqual(refs, ['bk26/07-03', 'PC-17', 'bk26/08-01']);       // as sent, as typed, and numbered when left blank
+  // a reference already in the books stops the import
+  const again = preview(db, ['Date,Amount,Payee', '05/08/2026,-14.00,SHOP FOUR'].join('\n'));
+  assert.throws(() => commit(db, { add: [{ ...again.lines[0], bank_date: again.lines[0].date, payee_name: 'X', account_code: '270', reference: 'PC-17' }] }), /PC-17 is already used/);
+});
