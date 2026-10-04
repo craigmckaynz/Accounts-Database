@@ -51,17 +51,17 @@ Tests (made-up data, in memory): `npm test`.
 
 ## No duplicates on import
 
-Three things stop a statement line being added when the books already have it:
-
 1. A line brought in before carries a fingerprint (date, amount, description, position among identical
    lines) and is recognised as done, however the files overlap.
 2. An entry of the same amount within 4 days of the bank's date is taken to be the same transaction and is
    ticked off instead of added. Each entry can only be claimed by one statement line, so two identical
    payments on the statement against one in the books leaves one to add.
-3. An entry of the same amount 5 to 14 days away is a *possible* duplicate: the line is held back and the
-   screen asks "same entry" or "separate". The server enforces this as well - it refuses to add a line when
-   an unclaimed entry of the same amount sits within 14 days, unless the line was confirmed as separate - and
-   an import is all-or-nothing, so a refusal adds nothing.
+3. If such an entry is typed into the books after the preview was drawn, the server refuses the line and
+   nothing is added.
+
+Entries of the same amount further away than 4 days are treated as different transactions. The earlier
+"possibly already entered" question (5 to 14 days) was removed on 5 Oct 2026 at Craig's instruction: the
+statement being imported is checked before it is loaded.
 
 ## How it differs from the Access database
 

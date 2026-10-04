@@ -89,7 +89,7 @@ test('statement lines are matched to the books; the rest are offered with no cod
   }
   assert.equal(p.lines[2].payee_name, 'HILLTOP FUEL STOP');             // the bank's wording, to edit
   assert.deepEqual(p.book_only.map(t => t.id), [extra.id]);
-  assert.deepEqual(p.counts, { total: 4, done: 0, matched: 2, fresh: 2, possible: 0, book_only: 1 });
+  assert.deepEqual(p.counts, { total: 4, done: 0, matched: 2, fresh: 2, book_only: 1 });
 });
 
 test('importing adds the new lines once and records the closing balance', () => {
@@ -132,44 +132,14 @@ test('unreadable columns ask for a mapping instead of failing', () => {
   assert.deepEqual(p.columns, ['When', 'What', 'How much']);
 });
 
-test('nothing already in the books is added again', () => {
-  const db = fresh();
-  // typed by hand nine days before the bank's date: too far to be assumed the same, close enough to ask
-  const typed = ledger.createTransaction(db, { date: '2026-06-22', type: 'P', amount_cents: 5750, account_code: '270', payee_name: 'HILLTOP FUEL' });
-  const csv = ['Date,Amount,Payee', '01/07/2026,-57.50,HILLTOP FUEL STOP'].join('\n');
-  const p = preview(db, csv);
-  assert.equal(p.lines[0].status, 'new');
-  assert.equal(p.lines[0].possible.id, typed.id);
-  assert.equal(p.counts.possible, 1);
-  const line = { ...p.lines[0], bank_date: p.lines[0].date, payee_name: 'HILLTOP FUEL', account_code: '270' };
-
-  // the server refuses it even if the screen sends it as new
-  assert.throws(() => commit(db, { add: [line] }), /already have bk26.06-01 for the same amount/);
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM transactions').get().n, 1);
-
-  // "it is the same entry": ticked off, nothing added, and the file is clean next time
-  assert.deepEqual(commit(db, { matched: [{ fp: line.fp, transaction_id: typed.id }] }), { added: 0, ticked: 1 });
-  assert.equal(preview(db, csv).lines[0].status, 'done');
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM transactions').get().n, 1);
-});
-
 test('two identical payments on the statement and one in the books: one is new, and can be added on purpose', () => {
   const db = fresh();
   const typed = ledger.createTransaction(db, { date: '2026-07-01', type: 'P', amount_cents: 5750, account_code: '270', payee_name: 'HILLTOP FUEL' });
   const p = preview(db, ['Date,Amount,Payee', '01/07/2026,-57.50,HILLTOP FUEL STOP', '01/07/2026,-57.50,HILLTOP FUEL STOP'].join('\n'));
   assert.deepEqual(p.lines.map(l => l.status), ['matched', 'new']);
-  assert.equal(p.lines[1].possible, undefined);
   const r = commit(db, { matched: [{ fp: p.lines[0].fp, transaction_id: typed.id }], add: [{ ...p.lines[1], bank_date: p.lines[1].date, payee_name: 'HILLTOP FUEL', account_code: '270' }] });
   assert.deepEqual(r, { added: 1, ticked: 1 });
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM transactions').get().n, 2);
-});
-
-test('a separate transaction of the same amount can be added once it is confirmed', () => {
-  const db = fresh();
-  ledger.createTransaction(db, { date: '2026-06-22', type: 'P', amount_cents: 5750, account_code: '270', payee_name: 'HILLTOP FUEL' });
-  const p = preview(db, ['Date,Amount,Payee', '01/07/2026,-57.50,HILLTOP FUEL STOP'].join('\n'));
-  const r = commit(db, { add: [{ ...p.lines[0], bank_date: p.lines[0].date, payee_name: 'HILLTOP FUEL', account_code: '270', allow_duplicate: true }] });
-  assert.equal(r.added, 1);
 });
 
 test('references: the preview gives the next number for each month, and the import uses the ones it is sent', () => {
@@ -208,4 +178,23 @@ test('a statement line split into parts: each part is its own entry, and the par
   const again = preview(db, csv);
   assert.equal(again.lines[0].status, 'done');
   assert.equal(again.book_only.length, 0);
+});
+
+test('an entry of the same amount more than four days away is a different transaction: the line is simply new', () => {
+  const db = fresh();
+  ledger.createTransaction(db, { date: '2026-06-22', type: 'P', amount_cents: 5750, account_code: '270', payee_name: 'HILLTOP FUEL' });
+  const p = preview(db, ['Date,Amount,Payee', '01/07/2026,-57.50,HILLTOP FUEL STOP'].join('\n'));
+  assert.equal(p.lines[0].status, 'new');
+  assert.equal(p.lines[0].possible, undefined);
+  assert.equal(p.counts.possible, undefined);
+  assert.equal(commit(db, { add: [{ ...p.lines[0], bank_date: p.lines[0].date, account_code: '270' }] }).added, 1);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM transactions').get().n, 2);
+});
+
+test('if the same entry is typed into the books after the preview was drawn, adding the line is refused', () => {
+  const db = fresh();
+  const p = preview(db, ['Date,Amount,Payee', '01/07/2026,-57.50,HILLTOP FUEL STOP'].join('\n'));
+  ledger.createTransaction(db, { date: '2026-07-02', type: 'P', amount_cents: 5750, account_code: '270', payee_name: 'HILLTOP FUEL' });
+  assert.throws(() => commit(db, { add: [{ ...p.lines[0], bank_date: p.lines[0].date, account_code: '270' }] }), /already have bk26.07-01 for the same amount/);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM transactions').get().n, 1);
 });

@@ -3,6 +3,14 @@
 One entry per version installed into the master database, newest first. Each entry says what changed for
 the person using it, which objects changed, and which BUGS_AND_IMPROVEMENTS items it closes.
 
+## Application 0.5.1 - 2026-10-05 (prototype)
+
+- Removed the "possibly already entered" question from the bank import. A statement line is either matched
+  to an entry of the same amount within 4 days (and ticked off) or it is new. The server's last check
+  against doubling up now uses the same 4 days.
+- Tested: 30 automated tests pass; in the browser a line whose amount matches an entry nine days earlier
+  arrives as an ordinary ticked line with no question.
+
 ## Application 0.5.0 - 2026-10-05 (prototype)
 
 - Import preview: a statement line can be split into parts, each its own entry with its own amount,

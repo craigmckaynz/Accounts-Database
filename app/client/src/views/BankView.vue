@@ -42,8 +42,7 @@ async function run() {
       for (const l of d.lines) {
         l.bank_date = l.date;                     // the bank's date, kept when the entry's date is edited
         if (l.status !== 'new') continue;
-        l.decision = null;                        // for a possible duplicate: 'same' or 'separate'
-        l.include = !l.possible;                  // a possible duplicate is held back until decided
+        l.include = true;
         l.parts = [newPart(l)];
       }
       show.value = d.counts.fresh ? 'new' : 'all';
@@ -55,14 +54,11 @@ async function run() {
 function reset() { data.value = null; text.value = ''; fileName.value = ''; mapping.value = null; error.value = null; confirming.value = false; }
 
 const fresh = computed(() => (data.value?.lines || []).filter(l => l.status === 'new'));
-const same = computed(() => fresh.value.filter(l => l.decision === 'same'));
-const chosen = computed(() => fresh.value.filter(l => l.include && l.decision !== 'same'));
-const undecided = computed(() => fresh.value.filter(l => l.possible && !l.decision));
-const possibleLeft = computed(() => fresh.value.filter(asking).length);
-const leftOut = computed(() => fresh.value.filter(l => !l.include && l.decision !== 'same' && !(l.possible && !l.decision)));
+const chosen = computed(() => fresh.value.filter(l => l.include));
+const leftOut = computed(() => fresh.value.filter(l => !l.include));
 const known = code => store.accounts.some(a => a.code === code.trim());
 const badDate = computed(() => chosen.value.filter(l => !isIsoDate(l.date)));
-const toTick = computed(() => data.value.lines.filter(l => l.status === 'matched').length + same.value.length);
+const toTick = computed(() => data.value.lines.filter(l => l.status === 'matched').length);
 const visible = computed(() => (show.value === 'new' ? fresh.value : data.value.lines));
 
 // ---- parts and their amounts
@@ -82,12 +78,6 @@ const entries = computed(() => chosen.value.flatMap(l => l.parts.map(p => ({ id:
 const uncoded = computed(() => entries.value.filter(e => !known(e.part.account_code)));
 const total = sign => entries.value.reduce((s, e) => s + (Math.sign(e.line.amount_cents) === sign ? partCents(e.line, e.part) || 0 : 0), 0);
 
-// A possible duplicate asks its question until it is answered "separate"; after that it is a line like any other.
-const asking = l => Boolean(l.possible) && l.decision !== 'separate';
-function decide(l, what) {
-  l.decision = what;
-  l.include = what === 'separate';
-}
 // Choosing a quick code fills the payee name and the ledger code it normally goes to, as the Access
 // Transactions form did (Payee_Name and Auto_Code from quick_codes).
 function quickPicked(p, row) {
@@ -102,13 +92,11 @@ const running = computed(() => {
   const d = data.value;
   const out = new Map();
   if (!d?.running) return out;
-  let base = d.running.base_cents;
-  const claimed = new Set();
-  for (const l of d.lines) if (l.decision === 'same') { claimed.add(l.possible.id); if (l.possible.date < d.from) base -= (l.possible.type === 'R' ? 1 : -1) * l.possible.amount_cents; }
-  const others = d.running.others.filter(o => !claimed.has(o.id));
+  const base = d.running.base_cents;
+  const others = d.running.others;
   let cum = 0;
   for (const l of d.lines) {
-    const counts = l.status !== 'new' || l.decision === 'same' || (l.include && l.decision !== 'same');
+    const counts = l.status !== 'new' || l.include;
     if (counts) cum += l.amount_cents;
     const books = base + cum + others.reduce((s, o) => s + (o.date <= l.bank_date ? o.signed_cents : 0), 0);
     out.set(l.fp, { books, differs: l.balance_cents !== null && l.balance_cents !== books });
@@ -194,7 +182,7 @@ function reviewKey(e) {
     } else here.part[col] = above.part[col];
   }
 }
-function tickAll(on) { for (const l of fresh.value) if (!asking(l)) l.include = on; }
+function tickAll(on) { for (const l of fresh.value) l.include = on; }
 
 // What the books will read at the statement's closing date once the ticked lines are added.
 const closing = computed(() => {
@@ -224,9 +212,9 @@ async function importNow() {
         amount_cents: Math.sign(e.line.amount_cents) * partCents(e.line, e.part), line_cents: e.line.amount_cents, description: e.line.description,
         payee_name: e.part.payee_name.trim(), payee_code: e.part.payee_code, account_code: e.part.account_code.trim(),
         // The line itself was checked against the books as a whole; its parts are not each checked again.
-        allow_duplicate: e.line.decision === 'separate' || e.line.parts.length > 1
+        allow_duplicate: e.line.parts.length > 1
       })),
-      matched: d.lines.filter(l => l.status === 'matched').map(l => ({ fp: l.fp, transaction_id: l.transaction.id })).concat(same.value.map(l => ({ fp: l.fp, transaction_id: l.possible.id }))),
+      matched: d.lines.filter(l => l.status === 'matched').map(l => ({ fp: l.fp, transaction_id: l.transaction.id })),
       checkpoint: d.closing ? { date: d.closing.date, balance_cents: d.closing.balance_cents } : null
     });
     toast(`Added ${plural(r.added, 'entry', 'entries')}; ${r.ticked} already in the books ticked off`);
@@ -267,7 +255,6 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
       <div class="card tile"><small>{{ fileName }}</small><b>{{ data.counts.total }} lines</b><small>{{ niceDate(data.from) }} to {{ niceDate(data.to) }}</small></div>
       <div class="card tile"><small>Already in the books</small><b>{{ data.counts.done + data.counts.matched }}</b><small>{{ data.counts.matched ? data.counts.matched + ' to tick off' : 'all ticked off' }}</small></div>
       <div class="card tile" :class="{ hot: data.counts.fresh }"><small>New, to add</small><b>{{ data.counts.fresh }}</b><small>{{ chosen.length }} ticked{{ entries.length > chosen.length ? ', ' + entries.length + ' entries' : '' }}</small></div>
-      <div v-if="possibleLeft" class="card tile" :class="{ warn: undecided.length }"><small>Possibly already entered</small><b>{{ possibleLeft }}</b><small>{{ undecided.length ? undecided.length + ' to decide' : 'all decided' }}</small></div>
       <div class="card tile" :class="{ warn: data.counts.book_only }"><small>In the books, not on the statement</small><b>{{ data.counts.book_only }}</b><small>{{ data.counts.book_only ? 'listed below' : 'none' }}</small></div>
       <div v-if="closing" class="card tile" :class="closing.diff === 0 ? 'good' : 'warn'">
         <small>Statement balance {{ niceDate(closing.date) }}</small><b>{{ dollars(closing.balance_cents) }}</b>
@@ -281,7 +268,6 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
         <button v-if="fresh.length" class="small" @click="tickAll(true)">Tick all</button><button v-if="fresh.length" class="small" @click="tickAll(false)">Untick all</button>
         <span v-if="fresh.length" class="muted keys"><kbd>↑</kbd> <kbd>↓</kbd> move between lines · <kbd>Ctrl</kbd>+<kbd>'</kbd> copies the value above · <kbd>F4</kbd> opens a list</span>
         <span class="grow"></span>
-        <span v-if="undecided.length" class="pill warn">{{ undecided.length }} to decide</span>
         <span v-if="needRef.length" class="pill warn">{{ needRef.length }} need a reference</span>
         <span v-if="uncoded.length" class="pill warn">{{ uncoded.length }} need a ledger code</span>
         <button class="primary" :disabled="busy || (!entries.length && !toTick)" @click="review">
@@ -291,8 +277,8 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
         <thead><tr><th></th><th>Date</th><th>Reference</th><th>Bank description</th><th class="num">Payment</th><th class="num">Receipt</th><th v-if="hasBankBalance" class="num">Bank bal.</th><th class="num">Books bal.</th><th>Quick code</th><th>Payee in the books</th><th>Ledger code</th><th></th></tr></thead>
         <tbody>
           <template v-for="l in visible" :key="l.fp">
-            <tr :data-fp="l.fp" :class="{ dim: l.status !== 'new' || !l.include, joined: asking(l) || (l.include && l.parts?.length > 1) }">
-              <td class="tick"><input v-if="l.status === 'new' && !asking(l)" type="checkbox" v-model="l.include" :aria-label="'Add ' + l.description" /></td>
+            <tr :data-fp="l.fp" :class="{ dim: l.status !== 'new' || !l.include, joined: l.include && l.parts?.length > 1 }">
+              <td class="tick"><input v-if="l.status === 'new'" type="checkbox" v-model="l.include" :aria-label="'Add ' + l.description" /></td>
               <td class="nowrap" data-col="date"><input v-if="l.status === 'new' && l.include" type="date" v-model="l.date" aria-label="Date" /><template v-else>{{ niceDate(l.date) }}</template></td>
               <td class="nowrap" data-col="reference">
                 <input v-if="l.status === 'new' && l.include" class="ref" :class="{ need: clash(l.fp) || (l.parts[0].refMode === 'manual' && !l.parts[0].ref) }" :value="refs.get(l.fp) || ''" :placeholder="l.amount_cents > 0 ? 'invoice no.' : 'automatic'" aria-label="Reference" @change="setReference(l, l.parts[0], $event.target.value)" />
@@ -338,14 +324,6 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
                 <td class="act"><button class="small" title="Remove this part" :aria-label="'Remove part ' + (i + 2)" @click="unsplit(l, p)">Remove</button></td>
               </tr>
             </template>
-            <tr v-if="asking(l)" class="ask">
-              <td></td>
-              <td :colspan="hasBankBalance ? 11 : 10">
-                <span class="pill warn">Possibly already entered</span>
-                The books have <b>{{ l.possible.reference }}</b> {{ l.possible.payee_name }} for the same amount, dated {{ niceDate(l.possible.date) }}.
-                <span class="seg" style="margin-left: 8px"><button :class="{ on: l.decision === 'same' }" @click="decide(l, 'same')">Same entry — don’t add</button><button :class="{ on: l.decision === 'separate' }" @click="decide(l, 'separate')">Separate — add it</button></span>
-              </td>
-            </tr>
           </template>
         </tbody>
       </table></div>
@@ -373,7 +351,6 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
             <tr><td class="in">receipts</td><td class="num">{{ money(total(1)) }}</td></tr>
             <tr><td>Entries already in the books to tick off</td><td class="num">{{ toTick }}</td></tr>
             <tr v-if="leftOut.length"><td>Lines unticked (not added)</td><td class="num">{{ leftOut.length }}</td></tr>
-            <tr v-if="undecided.length"><td>Possible duplicates not decided (not added)</td><td class="num">{{ undecided.length }}</td></tr>
             <tr v-if="closing"><td>Bank balance in the books at {{ niceDate(closing.date) }} afterwards</td><td class="num">{{ money(closing.after) }}</td></tr>
             <tr v-if="closing"><td>Statement balance</td><td class="num">{{ money(closing.balance_cents) }} <span class="pill" :class="closing.diff === 0 ? 'ok' : 'warn'">{{ closing.diff === 0 ? 'agrees' : 'out by ' + money(Math.abs(closing.diff)) }}</span></td></tr>
           </tbody>
@@ -402,7 +379,6 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
 .bar .grow { flex: 1; }
 tr.dim td { color: var(--muted); }
 tr.joined td { border-bottom: 0; }
-tr.ask td { background: var(--amber-soft); padding-top: 8px; padding-bottom: 8px; }
 .nowrap { white-space: nowrap; }
 td.off { color: var(--amber); font-weight: 650; }
 /* The review table is kept narrow enough to show every column, balances included, without scrolling
@@ -433,7 +409,6 @@ td.off { color: var(--amber); font-weight: 650; }
 .review td.payee small { display: block; line-height: 15px; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .review td.bal { font-weight: 600; }
 .review input[type="date"] { width: 106px; }
-.review .seg button { padding: 3px 9px; }
 .review td.act { padding-left: 0; }
 .review td.act button { padding: 0 7px; height: 24px; font-size: 12px; vertical-align: top; margin-top: 1px; }
 .review tr.part td { background: var(--soft); }

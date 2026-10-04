@@ -157,12 +157,9 @@ export function statementLines(rows, { headerRow, mapping }) {
   return { lines, skipped };
 }
 
-// An entry of the same amount within MATCH_DAYS of the bank's date is taken to be the same transaction.
-// One further away, up to DUPLICATE_DAYS, might be (a cheque banked late, an invoice date typed instead of the
-// payment date): the line is held back until the user says which.
+// An entry of the same amount within MATCH_DAYS of the bank's date is taken to be the same transaction and is
+// ticked off rather than added. Anything further away is treated as a different transaction.
 const MATCH_DAYS = 4;
-const DUPLICATE_DAYS = 14;
-const dayGap = (a, b) => Math.abs((Date.parse(a) - Date.parse(b)) / 86400000);
 
 // ---- lining the statement up against the books -------------------------------------------------------
 
@@ -171,7 +168,7 @@ const signedOf = t => (t.type === 'R' ? t.amount_cents : -t.amount_cents);
 export function analyse(db, lines) {
   if (!lines.length) throw new UserError('No transactions were found in that file.');
   const first = lines[0].date, last = lines[lines.length - 1].date;
-  const books = db.prepare('SELECT * FROM transactions WHERE date >= ? AND date <= ? ORDER BY date, id').all(addDays(first, -DUPLICATE_DAYS), addDays(last, DUPLICATE_DAYS));
+  const books = db.prepare('SELECT * FROM transactions WHERE date >= ? AND date <= ? ORDER BY date, id').all(addDays(first, -MATCH_DAYS - 1), addDays(last, MATCH_DAYS + 1));
   const byFp = new Map(books.filter(t => t.bank_ref).map(t => [t.bank_ref, t]));
   for (const t of db.prepare(`SELECT * FROM transactions WHERE bank_ref IN (${lines.map(() => '?').join(',')})`).all(...lines.map(l => l.fp))) byFp.set(t.bank_ref, t);
   const used = new Set();
@@ -193,18 +190,6 @@ export function analyse(db, lines) {
       }
       if (best) { l.status = 'matched'; l.transaction = best.t; used.add(best.t.id); }
     }
-  }
-  // Lines still unmatched: is there an entry of the same amount a little further away?
-  const maybe = new Set();
-  for (const l of out) {
-    if (l.status !== 'new') continue;
-    let best = null;
-    for (const t of free) {
-      if (used.has(t.id) || maybe.has(t.id) || signedOf(t) !== l.amount_cents) continue;
-      const gap = dayGap(t.date, l.date);
-      if (gap <= DUPLICATE_DAYS && (!best || gap < best.gap)) best = { t, gap };
-    }
-    if (best) { l.possible = best.t; maybe.add(best.t.id); }
   }
   // No ledger code or quick code is suggested: each new line is coded by the person checking it. The payee
   // starts as the bank's own wording.
@@ -240,7 +225,7 @@ export function analyse(db, lines) {
   return {
     next_refs: nextRefs,
     from: first, to: last, lines: out, book_only: bookOnly, closing, running,
-    counts: { total: out.length, done: out.filter(l => l.status === 'done').length, matched: out.filter(l => l.status === 'matched').length, fresh: out.filter(l => l.status === 'new').length, possible: out.filter(l => l.possible).length, book_only: bookOnly.length }
+    counts: { total: out.length, done: out.filter(l => l.status === 'done').length, matched: out.filter(l => l.status === 'matched').length, fresh: out.filter(l => l.status === 'new').length, book_only: bookOnly.length }
   };
 }
 
@@ -264,8 +249,9 @@ export function commit(db, { add = [], matched = [], checkpoint = null }) {
     let added = 0, ticked = 0;
     // Tick off first, so the entries they claim cannot also be mistaken for duplicates of the new lines.
     for (const m of matched) if (m.fp && m.transaction_id) ticked += Number(stamp.run(m.fp, m.transaction_id).changes);
-    // The last line of defence against doubling up, whatever the screen sent: an entry of the same amount
-    // near the bank's date that no statement line has claimed.
+    // A last check against doubling up if the books changed after the preview was drawn: an entry of the same
+    // amount within the matching window that no statement line has claimed. A split line is exempt (its parts
+    // are not the bank's amount).
     const twin = db.prepare('SELECT reference, date FROM transactions WHERE bank_ref IS NULL AND type = ? AND amount_cents = ? AND date >= ? AND date <= ? ORDER BY date LIMIT 1');
     // A statement line may arrive as several parts (fingerprints "line", "line#2", ...). Together they must come
     // to exactly the bank's figure for that line, or nothing is added.
@@ -285,8 +271,8 @@ export function commit(db, { add = [], matched = [], checkpoint = null }) {
       if (!l.fp || hasFp.get(l.fp)) continue;                    // already brought in
       if (!Number.isInteger(l.amount_cents) || l.amount_cents === 0) throw new UserError('A statement line has no amount.');
       const bankDate = isIsoDate(l.bank_date) ? l.bank_date : l.date;
-      const dup = l.allow_duplicate ? null : twin.get(l.amount_cents > 0 ? 'R' : 'P', Math.abs(l.amount_cents), addDays(bankDate, -DUPLICATE_DAYS), addDays(bankDate, DUPLICATE_DAYS));
-      if (dup) throw new UserError(`${bankDate} ${l.payee_name || l.description}: the books already have ${dup.reference} for the same amount, dated ${dup.date}. Nothing was added. Mark the line as that entry, or confirm it is a separate transaction.`);
+      const dup = l.allow_duplicate ? null : twin.get(l.amount_cents > 0 ? 'R' : 'P', Math.abs(l.amount_cents), addDays(bankDate, -MATCH_DAYS), addDays(bankDate, MATCH_DAYS));
+      if (dup) throw new UserError(`${bankDate} ${l.payee_name || l.description}: the books already have ${dup.reference} for the same amount, dated ${dup.date}. Nothing was added. Load the statement again to line it up.`);
       let t;
       try {
         t = createTransaction(db, { reference: typeof l.reference === 'string' ? l.reference.trim() : '', date: l.date, type: l.amount_cents > 0 ? 'R' : 'P', amount_cents: Math.abs(l.amount_cents), payee_name: l.payee_name, payee_code: l.payee_code || null, account_code: l.account_code });
