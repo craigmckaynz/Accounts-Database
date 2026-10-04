@@ -52,6 +52,7 @@ const fresh = computed(() => (data.value?.lines || []).filter(l => l.status === 
 const same = computed(() => fresh.value.filter(l => l.decision === 'same'));
 const chosen = computed(() => fresh.value.filter(l => l.include && l.decision !== 'same'));
 const undecided = computed(() => fresh.value.filter(l => l.possible && !l.decision));
+const possibleLeft = computed(() => fresh.value.filter(asking).length);
 const leftOut = computed(() => fresh.value.filter(l => !l.include && l.decision !== 'same' && !(l.possible && !l.decision)));
 const known = code => store.accounts.some(a => a.code === code.trim());
 const uncoded = computed(() => chosen.value.filter(l => !known(l.account_code)));
@@ -60,6 +61,8 @@ const toTick = computed(() => data.value.lines.filter(l => l.status === 'matched
 const visible = computed(() => (show.value === 'new' ? fresh.value : data.value.lines));
 const sum = (rows, sign) => rows.reduce((s, l) => s + (Math.sign(l.amount_cents) === sign ? Math.abs(l.amount_cents) : 0), 0);
 
+// A possible duplicate asks its question until it is answered "separate"; after that it is a line like any other.
+const asking = l => Boolean(l.possible) && l.decision !== 'separate';
 function decide(l, what) {
   l.decision = what;
   l.include = what === 'separate';
@@ -155,7 +158,7 @@ function reviewKey(e) {
     } else line[col] = above[col];
   }
 }
-function tickAll(on) { for (const l of fresh.value) if (!l.possible) l.include = on; }
+function tickAll(on) { for (const l of fresh.value) if (!asking(l)) l.include = on; }
 
 // What the books will read at the statement's closing date once the ticked lines are added.
 const closing = computed(() => {
@@ -219,7 +222,7 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
       <div class="card tile"><small>{{ fileName }}</small><b>{{ data.counts.total }} lines</b><small>{{ niceDate(data.from) }} to {{ niceDate(data.to) }}</small></div>
       <div class="card tile"><small>Already in the books</small><b>{{ data.counts.done + data.counts.matched }}</b><small>{{ data.counts.matched ? data.counts.matched + ' to tick off' : 'all ticked off' }}</small></div>
       <div class="card tile" :class="{ hot: data.counts.fresh }"><small>New, to add</small><b>{{ data.counts.fresh }}</b><small>{{ chosen.length }} ticked</small></div>
-      <div v-if="data.counts.possible" class="card tile" :class="{ warn: undecided.length }"><small>Possibly already entered</small><b>{{ data.counts.possible }}</b><small>{{ undecided.length ? undecided.length + ' to decide' : 'all decided' }}</small></div>
+      <div v-if="possibleLeft" class="card tile" :class="{ warn: undecided.length }"><small>Possibly already entered</small><b>{{ possibleLeft }}</b><small>{{ undecided.length ? undecided.length + ' to decide' : 'all decided' }}</small></div>
       <div class="card tile" :class="{ warn: data.counts.book_only }"><small>In the books, not on the statement</small><b>{{ data.counts.book_only }}</b><small>{{ data.counts.book_only ? 'listed below' : 'none' }}</small></div>
       <div v-if="closing" class="card tile" :class="closing.diff === 0 ? 'good' : 'warn'">
         <small>Statement balance {{ niceDate(closing.date) }}</small><b>{{ dollars(closing.balance_cents) }}</b>
@@ -242,8 +245,8 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
         <thead><tr><th></th><th>Date</th><th>Reference</th><th>Bank description</th><th class="num">Payment</th><th class="num">Receipt</th><th v-if="hasBankBalance" class="num">Bank bal.</th><th class="num">Books bal.</th><th>Quick code</th><th>Payee in the books</th><th>Ledger code</th></tr></thead>
         <tbody>
           <template v-for="l in visible" :key="l.fp">
-            <tr :data-fp="l.fp" :class="{ dim: l.status !== 'new' || !l.include, joined: l.possible }">
-              <td class="tick"><input v-if="l.status === 'new' && !l.possible" type="checkbox" v-model="l.include" :aria-label="'Add ' + l.description" /></td>
+            <tr :data-fp="l.fp" :class="{ dim: l.status !== 'new' || !l.include, joined: asking(l) }">
+              <td class="tick"><input v-if="l.status === 'new' && !asking(l)" type="checkbox" v-model="l.include" :aria-label="'Add ' + l.description" /></td>
               <td class="nowrap" data-col="date"><input v-if="l.status === 'new' && l.include" type="date" v-model="l.date" aria-label="Date" /><template v-else>{{ niceDate(l.date) }}</template></td>
               <td class="nowrap" data-col="reference">
                 <input v-if="l.status === 'new' && l.include" class="ref" :class="{ need: clashes.has(refs.get(l.fp)) }" :value="refs.get(l.fp) || ''" placeholder="automatic" aria-label="Reference" @change="setReference(l, $event.target.value)" />
@@ -265,7 +268,7 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
                 <td class="nowrap">{{ l.transaction.account_code }} <small>{{ accountName(l.transaction.account_code) }}</small></td>
               </template>
             </tr>
-            <tr v-if="l.possible" class="ask">
+            <tr v-if="asking(l)" class="ask">
               <td></td>
               <td :colspan="hasBankBalance ? 10 : 9">
                 <span class="pill warn">Possibly already entered</span>
@@ -346,6 +349,7 @@ td.off { color: var(--amber); font-weight: 650; }
 .review input:not([type="checkbox"]) { height: 26px; padding: 0 6px; line-height: normal; vertical-align: top; }
 .review input[type="checkbox"] { width: 15px; height: 15px; margin: 0; vertical-align: middle; position: relative; top: -2px; }
 .review :deep(.picker) { height: 26px; vertical-align: top; }
+.review :deep(.picker input) { height: 26px; padding: 0 6px; font-size: 12.5px; }
 .review :deep(.picker-name) { line-height: 26px; }
 .review .pill { line-height: 1.5; }
 .review td.payee .pill { line-height: 14px; font-size: 11px; padding: 0 6px; }
