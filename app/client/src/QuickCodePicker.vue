@@ -14,6 +14,6 @@ const rows = computed(() => store.payees.map(p => ({ code: p.code, name: p.name,
 </script>
 
 <template>
-  <ListPicker :model-value="modelValue" :rows="rows" :columns="columns" label="Quick code" strict :disabled="disabled" :open-on-focus="openOnFocus" :width="width" :list-width="440"
+  <ListPicker :model-value="modelValue" :rows="rows" :columns="columns" label="Quick code" strict auto-fill :disabled="disabled" :open-on-focus="openOnFocus" :width="width" :list-width="440"
     @update:model-value="emit('update:modelValue', $event)" @pick="emit('pick', $event)" />
 </template>

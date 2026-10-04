@@ -11,6 +11,7 @@ const props = defineProps({
   name: { type: String, default: '' },             // text shown beside the box for the chosen row
   label: { type: String, default: '' },
   strict: Boolean,                                 // only a listed code (or nothing) may be left in the box
+  autoFill: Boolean,                               // typing down to a single possibility fills it in at once
   openOnFocus: { type: Boolean, default: true },   // false in grids, where the arrow keys move between rows
   disabled: Boolean, need: Boolean,
   width: { type: String, default: '74px' },
@@ -31,13 +32,15 @@ let before = '';
 const template = computed(() => props.columns.map(c => c.width || '1fr').join(' '));
 const find = v => props.rows.find(r => r.code.toLowerCase() === String(v || '').trim().toLowerCase());
 const current = computed(() => find(props.modelValue));
-const options = computed(() => {
-  const q = props.modelValue.trim().toLowerCase();
-  if (!filtering.value || !q) return props.rows;
+// The rows that fit what has been typed: codes starting with it first, then any column containing it.
+function matching(text) {
+  const q = text.trim().toLowerCase();
+  if (!q) return props.rows;
   const starts = props.rows.filter(r => r.code.toLowerCase().startsWith(q));
   const rest = props.rows.filter(r => !r.code.toLowerCase().startsWith(q) && props.columns.some(c => String(r[c.key] ?? '').toLowerCase().includes(q)));
   return starts.concat(rest);
-});
+}
+const options = computed(() => (filtering.value ? matching(props.modelValue) : props.rows));
 
 function position() {
   const r = box.value.getBoundingClientRect();
@@ -87,12 +90,22 @@ function hide(e) {
 onBeforeUnmount(() => listen(false));
 
 function pick(r) {
+  before = r.code;
   emit('update:modelValue', r.code);
   emit('pick', r);
   emit('change', r.code);
   hide();
 }
 function typed(e) {
+  // Typed down to the only possibility ("2D" when 2DEG is the one code that fits): fill it in and close the
+  // list, so the next key can move on. Only while adding characters, so it can still be deleted.
+  if (props.autoFill && String(e.inputType || '').startsWith('insert') && e.target.value.trim()) {
+    // One code starting with it is enough, whatever other rows mention the same letters in a name.
+    const q = e.target.value.trim().toLowerCase();
+    const codes = props.rows.filter(r => r.code.toLowerCase().startsWith(q));
+    const only = codes.length ? codes : matching(e.target.value);
+    if (only.length === 1) { pick(only[0]); return; }
+  }
   emit('update:modelValue', e.target.value);
   filtering.value = true;
   active.value = 0;
