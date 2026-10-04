@@ -3,8 +3,9 @@
 // nothing reaches the books until Add is pressed and confirmed.
 import { ref, computed } from 'vue';
 import { store, api, loadMeta, toast, money, dollars, accountName, openTransaction } from '../store.js';
-import { niceDate, gstInside, rateOn, isIsoDate } from '../../../shared/money.js';
+import { niceDate, isIsoDate } from '../../../shared/money.js';
 import AccountPicker from '../AccountPicker.vue';
+import QuickCodePicker from '../QuickCodePicker.vue';
 
 const text = ref('');
 const fileName = ref('');
@@ -63,23 +64,18 @@ function decide(l, what) {
   l.decision = what;
   l.include = what === 'separate';
 }
-// A quick code typed into the payee box fills the name and ledger code, as on the Transactions screen.
-function resolvePayee(l) {
-  const typed = l.payee_name.trim();
-  const p = store.payees.find(x => x.code === typed.toUpperCase());
-  if (p) { l.payee_name = p.name; l.payee_code = p.code; if (p.account_code) l.account_code = p.account_code; }
-  else if (!store.payees.some(x => x.code === l.payee_code && x.name === typed)) l.payee_code = null;
+// Choosing a quick code fills the payee name and the ledger code it normally goes to, as the Access
+// Transactions form did (Payee_Name and Auto_Code from quick_codes).
+function quickPicked(l, row) {
+  l.payee_code = row.code;
+  l.payee_name = row.name;
+  if (row.account_code) l.account_code = row.account_code;
+  l.suggestion.from = 'quick code ' + row.code;
+  spread(l);
 }
 // Coding one line codes the other lines from the same payee that have no code yet.
 function spread(l) {
   for (const o of fresh.value) if (o !== l && !o.account_code && o.description === l.description) { o.account_code = l.account_code; o.payee_name = l.payee_name; o.payee_code = l.payee_code; }
-}
-function gstOf(l) {
-  const a = store.accounts.find(x => x.code === l.account_code.trim());
-  if (!a) return null;
-  if (a.gst_exempt) return 0;
-  const rate = rateOn(store.gst_rates, l.date);
-  return rate === null ? null : gstInside(l.amount_cents, rate);
 }
 // The books' balance after each statement line, as it will be with the lines ticked now. Where everything is
 // in order it equals the bank's balance on that line; the first line where they part is where to look.
@@ -183,7 +179,7 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
           {{ chosen.length ? `Add ${chosen.length} ${chosen.length === 1 ? 'entry' : 'entries'}…` : 'Tick off matched entries…' }}</button>
       </div>
       <div v-if="visible.length" class="fit"><table class="review">
-        <thead><tr><th></th><th>Date</th><th>Bank description</th><th class="num">Payment</th><th class="num">Receipt</th><th v-if="hasBankBalance" class="num">Bank bal.</th><th class="num">Books bal.</th><th>Payee in the books</th><th>Ledger code</th><th class="num">GST</th></tr></thead>
+        <thead><tr><th></th><th>Date</th><th>Bank description</th><th class="num">Payment</th><th class="num">Receipt</th><th v-if="hasBankBalance" class="num">Bank bal.</th><th class="num">Books bal.</th><th>Quick code</th><th>Payee in the books</th><th>Ledger code</th></tr></thead>
         <tbody>
           <template v-for="l in visible" :key="l.fp">
             <tr :class="{ dim: l.status !== 'new' || !l.include, joined: l.possible }">
@@ -195,15 +191,15 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
               <td v-if="hasBankBalance" class="num muted">{{ l.balance_cents === null ? '' : money(l.balance_cents) }}</td>
               <td class="num bal" :class="{ off: running.get(l.fp)?.differs }" :title="running.get(l.fp)?.differs ? 'Differs from the bank balance on this line' : ''">{{ money(running.get(l.fp)?.books) }}</td>
               <template v-if="l.status === 'new'">
-                <td class="payee"><input v-model="l.payee_name" list="bank-payees" :disabled="!l.include" @change="resolvePayee(l); spread(l)" aria-label="Payee or quick code" />
-                  <small :title="l.suggestion.from || ''">{{ l.payee_code ? l.payee_code + ' · ' : '' }}{{ l.suggestion.from || 'not seen before — choose a code' }}</small></td>
+                <td class="nowrap"><QuickCodePicker :model-value="l.payee_code || ''" :disabled="!l.include" @update:model-value="l.payee_code = $event || null" @pick="quickPicked(l, $event)" /></td>
+                <td class="payee"><input v-model="l.payee_name" :disabled="!l.include" @change="spread(l)" aria-label="Payee" />
+                  <small :title="l.suggestion.from || ''">{{ l.suggestion.from || 'not seen before — choose a code' }}</small></td>
                 <td class="nowrap"><AccountPicker v-model="l.account_code" :disabled="!l.include" :need="l.include && !known(l.account_code)" width="62px" @change="spread(l)" /></td>
-                <td class="num">{{ gstOf(l) === null ? '' : money(gstOf(l)) }}</td>
               </template>
               <template v-else>
+                <td>{{ l.transaction.payee_code }}</td>
                 <td class="payee">{{ l.transaction.payee_name }}<small><span class="pill ok">In the books</span> {{ l.transaction.reference }}{{ l.transaction.date !== l.date ? ' · dated ' + niceDate(l.transaction.date) : '' }}</small></td>
                 <td class="nowrap">{{ l.transaction.account_code }} <small>{{ accountName(l.transaction.account_code) }}</small></td>
-                <td class="num">{{ money(l.transaction.gst_cents, { blankZero: true }) }}</td>
               </template>
             </tr>
             <tr v-if="l.possible" class="ask">
@@ -229,7 +225,6 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
           <td class="num">{{ t.type === 'P' ? money(t.amount_cents) : '' }}</td><td class="num">{{ t.type === 'R' ? money(t.amount_cents) : '' }}</td></tr></tbody>
       </table>
     </div>
-    <datalist id="bank-payees"><option v-for="p in store.payees" :key="p.code" :value="p.code">{{ p.name }}</option></datalist>
 
     <div v-if="confirming" class="veil" @click.self="confirming = false">
       <div class="card dialog" role="dialog" aria-modal="true" aria-label="Confirm import">
@@ -281,7 +276,7 @@ td.off { color: var(--amber); font-weight: 650; }
 .review th, .review td { padding: 4px 6px; }
 .review td.tick { width: 22px; padding-right: 0; }
 .review td.desc { max-width: 165px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.review td.payee { min-width: 130px; max-width: 185px; }
+.review td.payee { min-width: 125px; max-width: 175px; }
 .review :deep(.picker-name) { max-width: 112px; }
 .review :deep(.picker) { gap: 5px; }
 .review td.payee input { width: 100%; display: block; }
