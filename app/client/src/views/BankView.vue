@@ -5,7 +5,7 @@
 // A new statement line becomes one entry in the books, or several when it is split (one receipt covering
 // three invoices, one payment across two ledger codes). Each line therefore carries `parts`: the first is
 // the line itself and holds whatever amount the other parts leave.
-import { ref, computed } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { store, api, loadMeta, toast, money, dollars, accountName, openTransaction } from '../store.js';
 import { niceDate, isIsoDate, toCents } from '../../../shared/money.js';
 import AccountPicker from '../AccountPicker.vue';
@@ -30,12 +30,74 @@ const isTransfer = l => /^from\b/i.test((l.description || l.detail || '').trim()
 const wantsInvoice = l => l.amount_cents > 0 && !isTransfer(l);
 const newPart = l => ({ key: ++partSeq, amount: '', refMode: wantsInvoice(l) ? 'manual' : 'auto', ref: '', payee_code: null, payee_name: l.payee_name, account_code: '' });
 
+// ---- the import in progress
+// The statement file and everything typed against it are saved on the server as you go, so this screen can be
+// left, the app closed or the computer restarted, and the import picked up where it was. `session` is what
+// the server last confirmed; `saveState` drives the small "Saved" note.
+const session = ref(null);
+const saveState = ref('');                  // '', 'saving', 'saved', 'failed'
+const confirmDiscard = ref(false);
+const loadingSession = ref(true);
+let saveTimer = null;
+let lastSaved = '';
+
+// What has been typed, by statement line: its date and its parts.
+const snapshot = () => Object.fromEntries(fresh.value.map(l => [l.fp, { date: l.date, parts: l.parts.map(({ amount, refMode, ref, payee_code, payee_name, account_code }) => ({ amount, refMode, ref, payee_code, payee_name, account_code })) }]));
+function applyEdits(edits) {
+  for (const l of fresh.value) {
+    const e = edits?.[l.fp];
+    if (!e || !Array.isArray(e.parts) || !e.parts.length) continue;
+    if (isIsoDate(e.date)) l.date = e.date;
+    l.parts = e.parts.map(p => ({ ...newPart(l), ...p }));
+  }
+}
+async function saveNow() {
+  clearTimeout(saveTimer);
+  if (!session.value || !data.value || data.value.needs_mapping) return;
+  const body = JSON.stringify(snapshot());
+  if (body === lastSaved) return;
+  saveState.value = 'saving';
+  try {
+    await api('PUT', '/api/bank/session/edits', { edits: JSON.parse(body), mapping: mapping.value });
+    lastSaved = body;
+    saveState.value = 'saved';
+  } catch (e) { saveState.value = 'failed'; error.value = e.message; }
+}
+function saveSoon() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 700); }
+
 async function readFile(file) {
   if (!file) return;
   fileName.value = file.name;
   text.value = await file.text();
   mapping.value = null;
+  try { session.value = await api('PUT', '/api/bank/session', { file_name: file.name, text: text.value }); lastSaved = ''; }
+  catch (e) { error.value = e.message; return; }
   await run();
+}
+onMounted(async () => {
+  try {
+    const s = await api('GET', '/api/bank/session');
+    if (s) {
+      session.value = s;
+      fileName.value = s.file_name;
+      text.value = s.text;
+      mapping.value = s.mapping;
+      await run();
+      applyEdits(s.edits);
+      lastSaved = JSON.stringify(snapshot());
+      saveState.value = 'saved';
+    }
+  } catch (e) { error.value = e.message; }
+  loadingSession.value = false;
+});
+onBeforeUnmount(saveNow);
+// After the columns are chosen by hand, keep that choice with the import too.
+async function rerun() { await run(); lastSaved = ''; await saveNow(); }
+async function discard() {
+  clearTimeout(saveTimer);
+  try { await api('DELETE', '/api/bank/session'); } catch (e) { error.value = e.message; return; }
+  session.value = null; saveState.value = ''; confirmDiscard.value = false; lastSaved = '';
+  reset();
 }
 async function run() {
   busy.value = true; error.value = null; confirming.value = false;
@@ -242,18 +304,39 @@ async function importNow() {
       checkpoint: d.closing ? { date: d.closing.date, balance_cents: d.closing.balance_cents } : null
     });
     toast(`Added ${plural(r.added, 'entry', 'entries')}; ${r.ticked} already in the books ticked off`);
+    // The statement is in the books: the import is finished, so there is nothing left to resume.
+    clearTimeout(saveTimer);
+    try { await api('DELETE', '/api/bank/session'); } catch { /* it will simply show as finished next time */ }
+    session.value = null; saveState.value = ''; lastSaved = '';
     await loadMeta();
     await run();
   } catch (e) { error.value = e.message; confirming.value = false; }
   busy.value = false;
 }
+// Save a little after each change to what has been typed.
+watch(() => (session.value && data.value && !data.value.needs_mapping ? JSON.stringify(snapshot()) : ''), (now) => { if (now && now !== lastSaved) saveSoon(); });
+const when = iso => new Date(iso).toLocaleString('en-NZ', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
 const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['debit', 'Money out'], ['credit', 'Money in'], ['payee', 'Payee / description'], ['balance', 'Balance']];
 </script>
 
 <template>
-  <div class="head"><h1>Bank statement import</h1><span class="grow"></span><button v-if="data" @click="reset">Choose another file</button></div>
+  <div class="head">
+    <h1>Bank statement import</h1>
+    <span v-if="session" class="muted">{{ session.file_name || 'statement' }} · started {{ when(session.created_at) }}
+      <span v-if="saveState === 'saving'"> · saving…</span><span v-else-if="saveState === 'saved'"> · saved</span><b v-else-if="saveState === 'failed'" class="neg"> · not saved</b></span>
+    <span class="grow"></span>
+    <template v-if="session">
+      <template v-if="confirmDiscard">
+        <span class="muted">Discard what has been typed for this statement? The books are not affected.</span>
+        <button class="danger" @click="discard">Discard</button><button @click="confirmDiscard = false">Keep it</button>
+      </template>
+      <button v-else @click="confirmDiscard = true">Discard this import</button>
+    </template>
+    <button v-else-if="data" @click="reset">Choose another file</button>
+  </div>
 
-  <label v-if="!data" class="card drop" :class="{ over: dragging }" @dragover.prevent="dragging = true" @dragleave="dragging = false" @drop.prevent="dragging = false; readFile($event.dataTransfer.files[0])">
+  <p v-if="loadingSession" class="empty">Looking for an import in progress…</p>
+  <label v-else-if="!data" class="card drop" :class="{ over: dragging }" @dragover.prevent="dragging = true" @dragleave="dragging = false" @drop.prevent="dragging = false; readFile($event.dataTransfer.files[0])">
     <input type="file" accept=".csv,text/csv,text/plain" @change="readFile($event.target.files[0])" />
     <b>Choose the CSV file from internet banking</b>
     <span class="muted">or drop it here. You get a preview to check and edit first; nothing is added until you say so. Overlapping an earlier import is fine: nothing already in the books is added again.</span>
@@ -267,14 +350,14 @@ const roles = [['date', 'Date'], ['amount', 'Amount (payments negative)'], ['deb
     <div class="row">
       <label v-for="[key, label] in roles" :key="key" class="field"><span>{{ label }}</span>
         <select v-model.number="mapping[key]"><option :value="-1">—</option><option v-for="(c, i) in data.columns" :key="i" :value="i">{{ c || 'Column ' + (i + 1) }}</option></select></label>
-      <button class="primary" @click="run">Read the file</button>
+      <button class="primary" @click="rerun">Read the file</button>
     </div>
     <table style="margin-top: 12px"><thead><tr><th v-for="(c, i) in data.columns" :key="i">{{ c }}</th></tr></thead>
       <tbody><tr v-for="(r, i) in data.sample" :key="i"><td v-for="(c, k) in r" :key="k">{{ c }}</td></tr></tbody></table>
   </div>
 
   <template v-else-if="data">
-    <p v-if="data.counts.fresh || data.counts.matched" class="banner info"><b>Preview.</b> Nothing has been added to the books yet. Give each new line its quick code or ledger code (none are filled in for you) and each receipt its invoice number as the reference; split a line that covers more than one thing; then press Add. Every new line is added.</p>
+    <p v-if="data.counts.fresh || data.counts.matched" class="banner info"><b>{{ session ? 'Import in progress.' : 'Preview.' }}</b> Nothing has been added to the books yet. What you type is saved as you go, so you can close this and carry on later. Give each new line its quick code or ledger code (none are filled in for you) and each receipt its invoice number as the reference; split a line that covers more than one thing; then press Add. Every new line is added.</p>
     <div class="tiles">
       <div class="card tile"><small>{{ fileName }}</small><b>{{ data.counts.total }} lines</b><small>{{ niceDate(data.from) }} to {{ niceDate(data.to) }}</small></div>
       <div class="card tile"><small>Already in the books</small><b>{{ data.counts.done + data.counts.matched }}</b><small>{{ data.counts.matched ? data.counts.matched + ' to tick off' : 'all ticked off' }}</small></div>

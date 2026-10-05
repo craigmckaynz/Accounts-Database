@@ -64,6 +64,11 @@ export function createApp(db) {
     res.json(bank.preview(db, req.body.text, req.body.mapping || null));
   });
   app.post('/api/bank/import', (req, res) => res.json(bank.commit(db, req.body)));
+  // The import in progress: kept so the screen can be closed and resumed.
+  app.get('/api/bank/session', (req, res) => res.json(bank.getSession(db)));
+  app.put('/api/bank/session', (req, res) => res.json(bank.startSession(db, req.body)));
+  app.put('/api/bank/session/edits', (req, res) => res.json(bank.saveSessionEdits(db, req.body)));
+  app.delete('/api/bank/session', (req, res) => res.json(bank.endSession(db)));
 
   // ---- reports
   app.get('/api/reports/ledger', (req, res) => {

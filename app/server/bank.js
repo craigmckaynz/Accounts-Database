@@ -289,3 +289,38 @@ export function commit(db, { add = [], matched = [], checkpoint = null }) {
     return { added, ticked };
   });
 }
+
+// ---- an import in progress ----------------------------------------------------------------------------
+// The statement file and everything typed against it so far are kept in the database, so the import screen
+// can be closed (or the computer restarted) and picked up where it was left. Nothing here is in the books
+// until Add is pressed; discarding the session discards only the typing.
+
+export function getSession(db) {
+  const s = db.prepare('SELECT * FROM bank_session WHERE id = 1').get();
+  if (!s) return null;
+  return { file_name: s.file_name, text: s.csv_text, mapping: s.mapping ? JSON.parse(s.mapping) : null, edits: JSON.parse(s.edits || '{}'), created_at: s.created_at, updated_at: s.updated_at };
+}
+
+export function startSession(db, { file_name = '', text, mapping = null }) {
+  if (typeof text !== 'string' || !text.trim()) throw new UserError('Choose the CSV file exported from internet banking.');
+  const now = new Date().toISOString();
+  db.prepare(`INSERT INTO bank_session (id, file_name, csv_text, mapping, edits, created_at, updated_at) VALUES (1, ?, ?, ?, '{}', ?, ?)
+    ON CONFLICT(id) DO UPDATE SET file_name = excluded.file_name, csv_text = excluded.csv_text, mapping = excluded.mapping, edits = '{}', created_at = excluded.created_at, updated_at = excluded.updated_at`)
+    .run(String(file_name).slice(0, 200), text, mapping ? JSON.stringify(mapping) : null, now, now);
+  return getSession(db);
+}
+
+export function saveSessionEdits(db, { edits, mapping }) {
+  if (!edits || typeof edits !== 'object' || Array.isArray(edits)) throw new UserError('Nothing to save.');
+  const now = new Date().toISOString();
+  const r = mapping === undefined
+    ? db.prepare('UPDATE bank_session SET edits = ?, updated_at = ? WHERE id = 1').run(JSON.stringify(edits), now)
+    : db.prepare('UPDATE bank_session SET edits = ?, mapping = ?, updated_at = ? WHERE id = 1').run(JSON.stringify(edits), mapping ? JSON.stringify(mapping) : null, now);
+  if (!Number(r.changes)) throw new UserError('This import is no longer open. It was finished or discarded in another window.');
+  return { updated_at: now };
+}
+
+export function endSession(db) {
+  db.prepare('DELETE FROM bank_session WHERE id = 1').run();
+  return { ok: true };
+}

@@ -49,6 +49,14 @@ Tests (made-up data, in memory): `npm test`.
 | Problem finder | Enter a bank statement's closing balance. Where the books first disagree, it searches the entries since the last statement that agreed and lists the likeliest culprits: an entry made twice, a payment entered as a receipt, digits swapped, a slipped decimal point, an extra or missing digit - each with a one-click fix. It also lists skipped reference numbers and entries edited or deleted in that stretch, and sweeps for missing data, unknown ledger codes, future dates, references in the wrong month, double entries and GST that does not match the rate for the date. |
 | Setup | Bank account name, opening balance, financial year start, lock date, ledger codes, quick codes, GST rates. |
 
+## An import can be closed and resumed
+
+Choosing a statement file starts an import session, kept in the `bank_session` table: the file's text, the
+column mapping, and what has been typed against each line. It is saved a moment after every change and when
+the screen is left. Opening the Bank import screen again - after going to another screen, closing the app, or
+restarting - brings it back as it was. There is one session at a time. Adding the statement to the books
+deletes the session; "Discard this import" deletes it without adding anything.
+
 ## No duplicates on import
 
 1. A line brought in before carries a fingerprint (date, amount, description, position among identical

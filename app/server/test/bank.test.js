@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { openDb } from '../db.js';
 import * as ledger from '../ledger.js';
-import { parseCsv, parseDate, parseAmount, detectColumns, statementLines, preview, commit, matchKey } from '../bank.js';
+import { parseCsv, parseDate, parseAmount, detectColumns, statementLines, preview, commit, matchKey, getSession, startSession, saveSessionEdits, endSession } from '../bank.js';
 import { findProblems } from '../problems.js';
 
 function fresh() {
@@ -197,4 +197,28 @@ test('if the same entry is typed into the books after the preview was drawn, add
   ledger.createTransaction(db, { date: '2026-07-02', type: 'P', amount_cents: 5750, account_code: '270', payee_name: 'HILLTOP FUEL' });
   assert.throws(() => commit(db, { add: [{ ...p.lines[0], bank_date: p.lines[0].date, account_code: '270' }] }), /already have bk26.07-01 for the same amount/);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM transactions').get().n, 1);
+});
+
+test('an import in progress is kept and can be resumed, replaced or discarded', () => {
+  const db = fresh();
+  assert.equal(getSession(db), null);
+  const csv = ['Date,Amount,Payee', '10/08/2026,32200.00,PINNACLES CI', '11/08/2026,-57.50,GULL WAIHI'].join('\n');
+  startSession(db, { file_name: 'august.csv', text: csv });
+  const p = preview(db, getSession(db).text);
+  const edits = { [p.lines[0].fp]: { date: '2026-08-10', parts: [{ amount: '', refMode: 'manual', ref: 'F6-101', payee_code: null, payee_name: 'Pinnacles Civil', account_code: '230' }, { amount: '10,000.00', refMode: 'manual', ref: 'F6-102', payee_code: null, payee_name: 'Pinnacles Civil', account_code: '230' }] } };
+  saveSessionEdits(db, { edits });
+
+  // "closing and reopening": everything comes back from the database
+  const back = getSession(db);
+  assert.equal(back.file_name, 'august.csv');
+  assert.equal(back.text, csv);
+  assert.deepEqual(back.edits, edits);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM transactions').get().n, 0);      // nothing is in the books yet
+
+  // a new file replaces it and starts with no edits
+  startSession(db, { file_name: 'september.csv', text: csv });
+  assert.deepEqual(getSession(db).edits, {});
+  endSession(db);
+  assert.equal(getSession(db), null);
+  assert.throws(() => saveSessionEdits(db, { edits: {} }), /no longer open/);
 });

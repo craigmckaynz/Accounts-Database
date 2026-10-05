@@ -58,6 +58,15 @@ CREATE TABLE IF NOT EXISTS checkpoints (       -- balances read off bank stateme
   balance_cents INTEGER NOT NULL,
   note          TEXT NOT NULL DEFAULT ''
 );
+CREATE TABLE IF NOT EXISTS bank_session (     -- the bank statement import in progress (at most one), so it can be resumed
+  id         INTEGER PRIMARY KEY CHECK (id = 1),
+  file_name  TEXT NOT NULL DEFAULT '',
+  csv_text   TEXT NOT NULL,
+  mapping    TEXT,                             -- JSON: which column is which, when chosen by hand
+  edits      TEXT NOT NULL DEFAULT '{}',       -- JSON: what has been typed so far, by statement line
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS changes (           -- every add, edit and delete, for undo and for finding slips
   id             INTEGER PRIMARY KEY,
   at             TEXT NOT NULL,

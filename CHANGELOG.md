@@ -3,6 +3,20 @@
 One entry per version installed into the master database, newest first. Each entry says what changed for
 the person using it, which objects changed, and which BUGS_AND_IMPROVEMENTS items it closes.
 
+## Application 0.6.0 - 2026-10-06 (prototype)
+
+- The bank import is a session. The statement file and everything typed against it (dates, references,
+  splits, quick codes, payees, ledger codes) are saved in the database as you go, so the screen can be left,
+  the app closed or the computer restarted, and the import picked up where it was. One import is open at a
+  time. Nothing is in the books until Add; once the statement is added the saved session is deleted, and
+  "Discard this import" throws away the typing without touching the books.
+- Also since 0.5.1: receipts shaded, date picker on split rows, transfers in ("From ...") numbered as bank
+  entries, tick boxes removed.
+- Tested: 31 automated tests pass. In the browser on a made-up statement: typed a split, references, a
+  quick code, a ledger code and a payee; left the screen and returned, then reloaded the page - everything
+  came back each time with nothing in the books; added it (four entries as typed, session gone); started
+  another and discarded it (session gone, books unchanged).
+
 ## Application 0.5.1 - 2026-10-05 (prototype)
 
 - Tick boxes removed from the import preview (Craig, 5 Oct 2026): every new line on the statement is added.
