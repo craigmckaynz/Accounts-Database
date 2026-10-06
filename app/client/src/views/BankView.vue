@@ -24,9 +24,10 @@ const confirming = ref(false);
 let partSeq = 0;
 // Money going out is numbered automatically (bk26/08-18 ...). Money coming in starts with an empty reference:
 // the invoice number goes there. Quick code and ledger code start empty on every part - nothing is guessed.
-// The exception is a transfer in from another of the company's bank accounts: the bank describes those as
-// "From ...", there is no invoice, and they take a bank number like a payment.
-const isTransfer = l => /^from\b/i.test((l.description || l.detail || '').trim());
+// The exception is a transfer between the company's own bank accounts: the bank's description of those starts
+// with the word "From", "Frm" or "To". There is no invoice; they take a bank number like a payment, and a
+// transfer in is not a sale, so it is not shaded as a receipt.
+const isTransfer = l => /^(from|frm|to)\b/i.test((l.description || l.detail || '').trim());
 const wantsInvoice = l => l.amount_cents > 0 && !isTransfer(l);
 const newPart = l => ({ key: ++partSeq, amount: '', refMode: wantsInvoice(l) ? 'manual' : 'auto', ref: '', payee_code: null, payee_name: l.payee_name, account_code: '' });
 
