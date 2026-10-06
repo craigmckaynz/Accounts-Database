@@ -50,6 +50,9 @@ function applyEdits(edits) {
     if (!e || !Array.isArray(e.parts) || !e.parts.length) continue;
     if (isIsoDate(e.date)) l.date = e.date;
     l.parts = e.parts.map(p => ({ ...newPart(l), ...p }));
+    // An empty reference saved as "to be typed" follows today's rule for the line: a transfer or a payment
+    // is numbered automatically, however it was treated when the import was started.
+    for (const p of l.parts) if (p.refMode === 'manual' && !String(p.ref || '').trim()) { p.ref = ''; p.refMode = wantsInvoice(l) ? 'manual' : 'auto'; }
   }
 }
 async function saveNow() {
