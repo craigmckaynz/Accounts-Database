@@ -8,8 +8,17 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 // The data lives outside the repository (which is public) and outside OneDrive.
+// Installed in a shared folder, the program sits in <folder>/app and the data in <folder>/data beside it.
+// Returns that data folder, or null when this is not such an installation (a developer's checkout).
+export function sharedDataDir() {
+  const dir = path.resolve(here, '..', '..', 'data');
+  return fs.existsSync(dir) ? dir : null;
+}
+
 export function defaultDbPath() {
-  return process.env.ACCOUNTS_DB || path.resolve(here, '..', '..', '..', 'accounts-data', 'accounts.sqlite');
+  if (process.env.ACCOUNTS_DB) return process.env.ACCOUNTS_DB;
+  const shared = sharedDataDir();
+  return shared ? path.join(shared, 'accounts.sqlite') : path.resolve(here, '..', '..', '..', 'accounts-data', 'accounts.sqlite');
 }
 
 const SCHEMA = `
@@ -85,10 +94,13 @@ const DEFAULT_SETTINGS = {
   bank_prefix: 'bk'
 };
 
-export function openDb(file = defaultDbPath()) {
+// `shared`: the file is on a network folder. SQLite's write-ahead log cannot be used there (it needs memory
+// shared between programs on one machine), so the classic journal is used, and the file is held exclusively:
+// fewer lock requests across the network, and no second program can write to it by accident.
+export function openDb(file = defaultDbPath(), { shared = false } = {}) {
   if (file !== ':memory:') fs.mkdirSync(path.dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
-  db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
+  db.exec(shared ? 'PRAGMA locking_mode = EXCLUSIVE; PRAGMA journal_mode = DELETE; PRAGMA foreign_keys = ON;' : 'PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
   db.exec(SCHEMA);
   // Added after 0.1.0: the bank statement line an entry was matched to or created from.
   if (!db.prepare('PRAGMA table_info(transactions)').all().some(c => c.name === 'bank_ref')) db.exec('ALTER TABLE transactions ADD COLUMN bank_ref TEXT');

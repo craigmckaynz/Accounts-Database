@@ -12,11 +12,30 @@ a first working prototype.
 
 ## Running it
 
-Use the **McKay Accounts** shortcut on the desktop or Start menu (created by
-`tools/make-shortcut.ps1`; right-click it and choose Pin to taskbar). It runs `app/launch.ps1`, which starts
-the server quietly if it is not running and opens the app in its own window. The server keeps running in
-the background until the computer is restarted or signed out. `Start Accounts.bat` in the repository root
-does the same with a visible console, or by hand:
+**In use:** the accounts run from the company folder on the NAS,
+`Z:\Craig\McKay Consultants Ltd\McKay Accounts` (`\\nas\public\...`):
+
+```
+app\                            the program (replaced by tools/deploy.ps1; do not edit there)
+data\accounts.sqlite            the accounts
+data\backups\                  a dated copy for each day the accounts were used, newest 30 kept
+data\in-use.json                present while someone has the accounts open: who, and since when
+Install on this computer.cmd    run once per computer: adds the McKay Accounts shortcut
+READ ME.txt
+```
+
+Each computer needs Node.js 22.13 or newer (https://nodejs.org, LTS). The shortcut runs `app\launch.ps1`,
+which starts the program on that computer (it listens on that computer only, port 4310) and opens it in its
+own window. **One person at a time**: a second computer is told who has the accounts open. The program stops
+about 45 seconds after its window is closed.
+
+To update the program after a change (the data is not touched; nobody may have the accounts open):
+
+```
+powershell -ExecutionPolicy Bypass -File tools\deploy.ps1
+```
+
+**For development** (this checkout, with data in `C:\claude\accounts-data`):
 
 ```
 cd app
@@ -25,19 +44,10 @@ npm run build
 npm start            # http://localhost:4310
 ```
 
-Bringing the data across from Access (reads a copy of the `.accdb`, never writes to it):
-
-```
-npm run import -- "C:\claude\accounts-work\accounts-copy.accdb"             # first time
-npm run import -- "C:\claude\accounts-work\accounts-copy.accdb" --replace   # again later; backs up first
-```
-
-It prints the counts and whether the bank balance agrees with Access. While Access is still the system
-in use, re-import with `--replace` to pick up new entries; anything entered only in the app is lost by that.
-
-Made-up data for trying things out: `npm run demo`, then `node server/index.js --db C:\claude\accounts-data\demo.sqlite --port 4312`.
-
-Tests (made-up data, in memory): `npm test`.
+Importing from Access (reads a copy of the `.accdb`, never writes to it) is `npm run import -- "<copy.accdb>"`.
+It replaces whatever the target database holds, so it is not for the live accounts now that entries are made
+in the app. Made-up data for trying things out: `npm run demo`, then
+`node server/index.js --db C:\claude\accounts-data\demo.sqlite --port 4312`. Tests: `npm test`.
 
 ## What is in it
 

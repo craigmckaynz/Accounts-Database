@@ -98,6 +98,14 @@ does now, reports to send the accountant for GST returns and year-end tax, and a
 entry that stops the books balancing. The screen layout need not copy Access. [app/README.md](app/README.md)
 describes what is built and what is not.
 
+- **The live accounts are on the NAS since 7 Oct 2026:** `Z:\Craig\McKay Consultants Ltd\McKay Accounts\data\accounts.sqlite`.
+  The app is the system in use; Access is no longer being entered into. Never open that file for writing
+  from a script, never run `npm run import` against it, and never copy over it. To look at it, use the
+  running program's API (`http://127.0.0.1:4310/api/...`, counts and true/false only) or a read-only copy.
+  Program changes reach it only through `tools/deploy.ps1`, with nobody in the accounts.
+- When checking real data from the command line, never print rows: pipe JSON straight into a script that
+  reduces it to counts or a checksum. (On 7 Oct 2026 a failed one-liner echoed transaction rows into the
+  session; the API output must not be allowed to reach the terminal raw.)
 - Node 24+, Express, Vue 3, Vite, plain JavaScript, `node:sqlite`. Keep the SQL plain (PostgreSQL later).
 - Real data: `C:claudeaccounts-dataaccounts.sqlite`, outside the repository. Demo data:
   `demo.sqlite` in the same folder (`npm run demo`). **Use the demo data for screenshots, browser checks and

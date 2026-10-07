@@ -2,8 +2,10 @@
 # Windows does not let a program pin to the taskbar: right-click the desktop shortcut and choose
 # "Pin to taskbar" (under "Show more options" on Windows 11).
 #   powershell -ExecutionPolicy Bypass -File tools\make-shortcut.ps1
+# A copy of this file also sits in the app folder of a shared installation, where "Install on this
+# computer.cmd" runs it: the shortcut then points at the shared folder.
 $ErrorActionPreference = 'Stop'
-$app = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\app'))
+$app = if (Test-Path (Join-Path $PSScriptRoot 'launch.ps1')) { $PSScriptRoot } else { [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\app')) }
 $icon = Join-Path $app 'accounts.ico'
 
 # The icon: a teal rounded square with a white M, as on the app's side bar. Drawn at 256 px and stored as a
@@ -36,16 +38,24 @@ if (-not (Test-Path $icon)) {
   [IO.File]::WriteAllBytes($icon, $out.ToArray())
 }
 
+# The shortcut's icon is kept on this computer, so it still shows when the shared folder is out of reach.
+$local = Join-Path $env:LOCALAPPDATA 'McKayAccounts'
+New-Item -ItemType Directory -Force $local | Out-Null
+Copy-Item -LiteralPath $icon -Destination (Join-Path $local 'accounts.ico') -Force
+$icon = Join-Path $local 'accounts.ico'
+
 $shell = New-Object -ComObject WScript.Shell
 $places = @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Programs'))
 foreach ($place in $places) {
   $lnk = $shell.CreateShortcut((Join-Path $place 'McKay Accounts.lnk'))
   $lnk.TargetPath = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
   $lnk.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$app\launch.ps1`""
-  $lnk.WorkingDirectory = $app
+  $lnk.WorkingDirectory = $local
   $lnk.IconLocation = "$icon,0"
   $lnk.Description = 'McKay Consultants accounts'
   $lnk.WindowStyle = 7          # minimised, so no console window flashes up
   $lnk.Save()
   "Shortcut: $(Join-Path $place 'McKay Accounts.lnk')"
 }
+"It opens the accounts in: $app"
+if (-not (Get-Command node -ErrorAction SilentlyContinue)) { "Node.js is not installed on this computer yet. Install the LTS version from https://nodejs.org, then use the shortcut." }

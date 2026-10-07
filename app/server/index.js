@@ -4,7 +4,8 @@ import express from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { openDb, defaultDbPath, getSettings, dailyBackup, inTransaction } from './db.js';
+import { openDb, defaultDbPath, sharedDataDir, getSettings, dailyBackup, inTransaction } from './db.js';
+import { claim, stopWhenIdle, InUseError } from './shared.js';
 import * as ledger from './ledger.js';
 import { UserError } from './ledger.js';
 import { findProblems } from './problems.js';
@@ -14,9 +15,14 @@ import { isIsoDate, todayIso } from '../shared/money.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-export function createApp(db) {
+// `idle` (shared installations only) is told about every request and about the window closing, so the server
+// can stop and hand the accounts back when nobody is using them.
+export function createApp(db, { idle = null } = {}) {
   const app = express();
   app.use(express.json({ limit: '20mb' }));
+  app.use('/api', (req, res, next) => { if (idle && req.path !== '/closing') idle.seen(); next(); });
+  app.get('/api/ping', (req, res) => res.json({ ok: true, shared: Boolean(idle) }));
+  app.post('/api/closing', (req, res) => { if (idle) idle.closing(); res.json({ ok: true }); });
   const need = (cond, msg, field) => { if (!cond) throw new UserError(msg, field); };
   const dates = q => { need(isIsoDate(q.from) && isIsoDate(q.to) && q.from <= q.to, 'Choose a valid date range.'); return { from: q.from, to: q.to }; };
 
@@ -158,11 +164,23 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   // node server/index.js [--db <file>] [--port <n>]
   const arg = name => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : null; };
   const file = arg('--db') ? path.resolve(arg('--db')) : defaultDbPath();
-  const db = openDb(file);
+  // Run from the shared company folder: one person at a time, and stop when the window is closed.
+  const sharedDir = !arg('--db') && !process.env.ACCOUNTS_DB ? sharedDataDir() : null;
+  let lock = null;
+  if (sharedDir) {
+    try { lock = claim(sharedDir); }
+    catch (e) { console.error(e instanceof InUseError ? 'IN USE: ' + e.message : e.message); process.exit(e instanceof InUseError ? 3 : 1); }
+  }
+  const db = openDb(file, { shared: Boolean(sharedDir) });
   const backup = dailyBackup(db, file);
   const port = Number(arg('--port') || process.env.PORT || 4310);
-  createApp(db).listen(port, '127.0.0.1', () => {
+  const stop = () => { try { db.close(); } catch { /* already closed */ } if (lock) lock.release(); process.exit(0); };
+  const idle = sharedDir ? stopWhenIdle({ onStop: () => { console.log('Nobody is using the accounts: stopping.'); stop(); } }) : null;
+  process.on('SIGINT', stop);
+  process.on('SIGTERM', stop);
+  process.on('exit', () => { if (lock) lock.release(); });
+  createApp(db, { idle }).listen(port, '127.0.0.1', () => {
     console.log(`McKay Accounts running at http://localhost:${port}`);
-    console.log(`Data: ${file}${backup ? `\nBackup taken: ${backup}` : ''}`);
+    console.log(`Data: ${file}${sharedDir ? ' (shared folder, one person at a time)' : ''}${backup ? `\nBackup taken: ${backup}` : ''}`);
   });
 }

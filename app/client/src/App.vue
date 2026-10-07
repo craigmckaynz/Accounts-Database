@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, computed } from 'vue';
+import { onMounted, onBeforeUnmount, computed } from 'vue';
 import { store, loadMeta, go, dollars } from './store.js';
 import { niceDate } from '../../shared/money.js';
 import TransactionsView from './views/TransactionsView.vue';
@@ -18,11 +18,20 @@ const views = [
 const current = computed(() => ({ transactions: TransactionsView, bank: BankView, reports: ReportsView, problems: ProblemsView, setup: SetupView })[store.view]);
 const error = computed(() => store.loadError);
 
+// The program behind this window is told the window is still open (and when it closes), so that when the
+// accounts are run from the shared folder it can stop and let someone else in. If it has stopped, say so.
+let pingTimer = null;
+const ping = () => fetch('/api/ping').then(r => { store.stopped = !r.ok; }).catch(() => { store.stopped = true; });
+const closing = () => { try { navigator.sendBeacon('/api/closing'); } catch { /* the program will notice the silence instead */ } };
+
 onMounted(async () => {
   const h = location.hash.slice(1);
   if (views.some(v => v.key === h)) store.view = h;
   try { await loadMeta(); } catch (e) { store.loadError = e.message; }
+  pingTimer = setInterval(ping, 30000);
+  window.addEventListener('pagehide', closing);
 });
+onBeforeUnmount(() => { clearInterval(pingTimer); window.removeEventListener('pagehide', closing); });
 </script>
 
 <template>
@@ -46,6 +55,7 @@ onMounted(async () => {
       <small class="foot" v-if="store.settings.locked_to">Locked up to {{ niceDate(store.settings.locked_to) }}</small>
     </aside>
     <main>
+      <p v-if="store.stopped" class="banner error" role="alert">The accounts program has stopped, so nothing more can be saved from this window. Close it and open McKay Accounts again from the shortcut. Work on a bank import was saved as you went.</p>
       <p v-if="error" class="banner error">{{ error }}</p>
       <component v-else-if="store.ready" :is="current" />
     </main>

@@ -1,5 +1,8 @@
-# Opens McKay Accounts in its own window. Starts the server quietly if it is not already running.
-# The desktop / taskbar shortcut runs this; tools\make-shortcut.ps1 creates that shortcut.
+# Opens McKay Accounts in its own window. Starts the program quietly if it is not already running on this
+# computer. The "McKay Accounts" shortcut runs this (make-shortcut.ps1 creates the shortcut).
+#
+# It works from wherever this file is: a developer's checkout, or the shared company folder on the NAS. In the
+# shared folder (a "data" folder beside "app") only one computer may have the accounts open at a time.
 $ErrorActionPreference = 'Stop'
 $app = $PSScriptRoot
 $port = 4310
@@ -16,17 +19,30 @@ function Show-Problem($text) {
 
 if (-not (Test-Running)) {
   $node = (Get-Command node -ErrorAction SilentlyContinue).Source
-  if (-not $node) { Show-Problem 'Node.js is not installed, so McKay Accounts cannot start.'; exit 1 }
-  Set-Location $app
-  if (-not (Test-Path (Join-Path $app 'node_modules'))) { & npm install | Out-Null }
-  if (-not (Test-Path (Join-Path $app 'dist\index.html'))) { & npm run build | Out-Null }
+  if (-not $node) { Show-Problem "Node.js is not installed on this computer, so McKay Accounts cannot start.`n`nInstall it from https://nodejs.org (the LTS version, all the default choices), then try again."; exit 1 }
+  $version = [version]((& $node --version).TrimStart('v'))
+  if ($version -lt [version]'22.13.0') { Show-Problem "McKay Accounts needs Node.js 22.13 or newer; this computer has $version.`n`nInstall the current LTS version from https://nodejs.org, then try again."; exit 1 }
+
+  if (-not (Test-Path (Join-Path $app 'node_modules'))) { Push-Location $app; & npm install | Out-Null; Pop-Location }
+  if (-not (Test-Path (Join-Path $app 'dist\index.html'))) { Push-Location $app; & npm run build | Out-Null; Pop-Location }
+
   $log = Join-Path $env:LOCALAPPDATA 'McKayAccounts'
   New-Item -ItemType Directory -Force $log | Out-Null
-  Start-Process -FilePath $node -ArgumentList 'server\index.js' -WorkingDirectory $app -WindowStyle Hidden `
-    -RedirectStandardOutput (Join-Path $log 'server.log') -RedirectStandardError (Join-Path $log 'server-errors.log')
+  $errors = Join-Path $log 'server-errors.log'
+  $server = Start-Process -FilePath $node -ArgumentList "`"$(Join-Path $app 'server\index.js')`"" -WorkingDirectory $env:LOCALAPPDATA -WindowStyle Hidden -PassThru `
+    -RedirectStandardOutput (Join-Path $log 'server.log') -RedirectStandardError $errors
   $ok = $false
-  foreach ($i in 1..40) { Start-Sleep -Milliseconds 250; if (Test-Running) { $ok = $true; break } }
-  if (-not $ok) { Show-Problem "McKay Accounts did not start. See $log\server-errors.log"; exit 1 }
+  foreach ($i in 1..120) {            # up to 30 seconds: the first start from a network folder is slow
+    Start-Sleep -Milliseconds 250
+    if (Test-Running) { $ok = $true; break }
+    if ($server.HasExited) { break }
+  }
+  if (-not $ok) {
+    $why = if (Test-Path $errors) { (Get-Content $errors -Tail 3) -join "`n" } else { '' }
+    if ($why -match 'IN USE: (.+)') { Show-Problem $Matches[1] }
+    else { Show-Problem "McKay Accounts did not start.`n`n$why`n`nDetails: $errors" }
+    exit 1
+  }
 }
 
 # Its own window, without browser tabs or address bar, when Edge or Chrome is there; otherwise the default browser.

@@ -1,6 +1,6 @@
 {
   "name": "mckay-accounts",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "description": "McKay Consultants cashbook: transactions, bank balance, GST and year-end reports, problem finder",

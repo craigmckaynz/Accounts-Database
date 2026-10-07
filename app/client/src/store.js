@@ -8,7 +8,8 @@ export const store = reactive({
   settings: {}, accounts: [], payees: [], gst_rates: [],
   balance_cents: 0, last_date: null, count: 0, today: '',
   openTransaction: null,          // { id, date } - ask the Transactions screen to open an entry
-  toast: null
+  toast: null,
+  stopped: false                  // the program behind the window is no longer answering
 });
 
 export async function api(method, url, body) {

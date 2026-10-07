@@ -3,6 +3,28 @@
 One entry per version installed into the master database, newest first. Each entry says what changed for
 the person using it, which objects changed, and which BUGS_AND_IMPROVEMENTS items it closes.
 
+## Application 0.7.0 - 2026-10-07 (in use from the company folder)
+
+- McKay Accounts now runs from the company folder on the NAS (`McKay Accounts` under McKay Consultants Ltd):
+  the program in `app`, the accounts in `data`. Any computer with Node.js runs it from there after
+  "Install on this computer.cmd" has added the shortcut.
+- One person at a time: the first computer to open the accounts leaves a note in the data folder; another
+  is told who has them and does not start. The note is refreshed every half minute and ignored after three
+  minutes of silence, so a crashed computer does not lock everyone out. The program stops by itself about
+  45 seconds after its window is closed (or after 15 minutes of silence), handing the accounts back.
+- On the network folder the database uses SQLite's classic journal and is held exclusively (the write-ahead
+  log cannot be used across a network).
+- `tools/deploy.ps1` tests, builds and copies the program to the folder; it never touches existing data.
+- Bank import: transfers are recognised by From, Frm or To and are not shaded; a resumed transfer line
+  with an empty reference is numbered automatically.
+- Tested: 31 automated tests pass. In a trial folder with made-up data: start, lock note written, second
+  copy refused, stop 49 s after the window closed with the note removed, refusal when another computer
+  holds a fresh note, take-over of a note ten minutes old. On the NAS: 21,538 transactions copied and
+  checked table by table; started from the NAS by the shortcut's launcher (17 s the first time, which
+  included the day's backup); count, checksum and last date equal the copy on the PC, and the running
+  balance ends at the bank balance.
+- Not tested: a second computer (only this one has been tried); behaviour if the network drops mid-use.
+
 ## Application 0.6.0 - 2026-10-06 (prototype)
 
 - The bank import is a session. The statement file and everything typed against it (dates, references,
