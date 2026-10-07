@@ -23,6 +23,10 @@ the person using it, which objects changed, and which BUGS_AND_IMPROVEMENTS item
   checked table by table; started from the NAS by the shortcut's launcher (17 s the first time, which
   included the day's backup); count, checksum and last date equal the copy on the PC, and the running
   balance ends at the bank balance.
+- Fixed the same day: the taskbar pin still pointed at the copy on the PC, which started on a new, empty
+  database (the live data on the NAS was untouched). The program now refuses to start when the accounts
+  file is missing instead of creating an empty one, and the launcher on the PC passes old shortcuts and pins
+  on to the shared folder (`app/moved-to.txt`, this computer only).
 - Not tested: a second computer (only this one has been tried); behaviour if the network drops mid-use.
 
 ## Application 0.6.0 - 2026-10-06 (prototype)

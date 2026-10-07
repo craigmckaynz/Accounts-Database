@@ -1,2 +1,4 @@
 node_modules/
 dist/
+# this computer only: where the live installation is (see launch.ps1)
+moved-to.txt

@@ -164,6 +164,12 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   // node server/index.js [--db <file>] [--port <n>]
   const arg = name => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : null; };
   const file = arg('--db') ? path.resolve(arg('--db')) : defaultDbPath();
+  // Never start on an empty set of books by accident. If the accounts file is not where it should be (the
+  // folder was moved, the network drive is not connected), say so and stop; a new one is made only on request.
+  if (!fs.existsSync(file) && !process.argv.includes('--create')) {
+    console.error(`NO DATA: The accounts were not found at ${file}. Nothing was opened. If the accounts are on the network drive, check it is connected.`);
+    process.exit(4);
+  }
   // Run from the shared company folder: one person at a time, and stop when the window is closed.
   const sharedDir = !arg('--db') && !process.env.ACCOUNTS_DB ? sharedDataDir() : null;
   let lock = null;
